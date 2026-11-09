@@ -80,6 +80,46 @@ fails, focusbell carries on silently with the bell and terminal output.
 Turn it on permanently with `focusbell config set notify true`; `--no-notify`
 turns it off for one run.
 
+### Pause and resume
+
+When stdin is a terminal, press **p** to pause the current phase and **p**
+again to resume. On a terminal the countdown freezes and shows
+`paused, p to resume`; time spent paused pushes the end of the phase back and
+is not counted as focus time. Keys are read without blocking (`msvcrt` on
+Windows, `termios` cbreak mode on Linux/macOS, restored on exit), so nothing
+needs Enter and nothing is echoed. When stdin is not a terminal the timer runs
+exactly as before and the banner only mentions Ctrl+C.
+
+Real output from a demo where `p` was typed into the console about 3 s into
+the work block and again 4 s later (stdout redirected to a file, so the plain
+line format is used):
+
+```text
+$ focusbell start --seconds --work 8 --short 2 --long 2 --cycles 1 --label demo --no-bell
+focusbell: 1 x 8s work, 2s short breaks, 2s long break after every 1. p to pause, Ctrl+C to stop.
+Work 1/1: 00:08 left  [demo]
+Work 1/1: 00:05 left  [demo]
+Work 1/1: paused at 00:05 left  [demo]. Press p to resume.
+Work 1/1: resumed, 00:05 left  [demo]
+Work block 1 done. Long break next.
+Long break: 00:02 left  [demo]
+All done. Nice work.
+Focused 8s: 1 of 1 work block(s) completed. Paused 1 time(s), 4s in total.
+```
+
+The logged block keeps its 8 s of focus in `minutes`, while `end` is the real
+wall-clock end, and the pause is recorded alongside it:
+
+```json
+{"start": "2026-11-10T01:24:36+00:00", "end": "2026-11-10T01:24:48+00:00", "minutes": 0.13, "planned_minutes": 0.13, "label": "demo", "status": "completed", "pauses": 1, "paused_minutes": 0.07}
+```
+
+`focusbell log` then adds a note to its footer, e.g.
+`1 session(s), 0m focused. 1 pause(s) in 1 session(s), 0m on hold (not counted).`
+Pressing Ctrl+C while paused logs only the time actually worked.
+
+### Stopping
+
 Press **Ctrl+C** at any time to stop. A work block in progress is saved as
 `interrupted` with the minutes you actually worked, and the command exits with
 status 130.
@@ -100,6 +140,12 @@ A line looks like:
 ```json
 {"start": "2026-11-09T17:10:00+00:00", "end": "2026-11-09T17:35:00+00:00", "minutes": 25.0, "planned_minutes": 25.0, "label": "thesis", "status": "completed"}
 ```
+
+A block that was paused also has `"pauses"` (how many times) and
+`"paused_minutes"` (time on hold, not included in `minutes`). Both are
+optional: older logs without them read as zero pauses, and blocks that were
+never paused are written exactly as above. JSON export includes them for
+paused blocks; the CSV columns are unchanged.
 
 Lines that are not valid JSON or are missing fields are skipped with a warning
 on stderr; they never crash the tool.

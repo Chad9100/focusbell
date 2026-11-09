@@ -10,9 +10,9 @@ import sys
 import time
 from datetime import date, datetime, tzinfo
 from pathlib import Path
-from typing import Callable, Mapping, Optional, Sequence, TextIO
+from typing import Callable, ContextManager, Mapping, Optional, Sequence, TextIO
 
-from . import __version__, config, notify, timer
+from . import __version__, config, keys, notify, timer
 from .log import Session, append_record, data_dir, log_path, read_sessions
 from .render import (
     BLOCK_EMPTY,
@@ -46,6 +46,7 @@ class _Ctx:
         now: Callable[[], datetime],
         tz: Optional[tzinfo],
         notifier: Optional[Callable[[], Optional[notify.Notifier]]] = None,
+        key_reader: Optional[Callable[[], ContextManager[Optional[keys.Poll]]]] = None,
     ):
         self.stdout = stdout
         self.stderr = stderr
@@ -55,6 +56,7 @@ class _Ctx:
         self.now = now
         self.tz = tz
         self.notifier = notifier or (lambda: notify.system_notifier(environ=environ))
+        self.key_reader = key_reader or keys.key_reader
 
     def out(self, text: str = "") -> None:
         self.stdout.write(text + "\n")
@@ -195,34 +197,46 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
     notifier = ctx.notifier() if want_notify else None
 
     blocks = values["cycles"] * args.sets
-    ctx.out(
-        f"focusbell: {blocks} x {_fmt_span(values['work'] * unit, args.seconds)} work, "
-        f"{_fmt_span(values['short'] * unit, args.seconds)} short breaks, "
-        f"{_fmt_span(values['long'] * unit, args.seconds)} long break"
-        f" after every {values['cycles']}. Ctrl+C to stop."
+
+    def span(seconds: float) -> str:
+        return f"{seconds:.0f}s" if args.seconds else fmt_minutes(seconds / 60)
+
+    with ctx.key_reader() as poll:
+        controls = "p to pause, Ctrl+C to stop." if poll is not None else "Ctrl+C to stop."
+        ctx.out(
+            f"focusbell: {blocks} x {_fmt_span(values['work'] * unit, args.seconds)} work, "
+            f"{_fmt_span(values['short'] * unit, args.seconds)} short breaks, "
+            f"{_fmt_span(values['long'] * unit, args.seconds)} long break"
+            f" after every {values['cycles']}. {controls}"
+        )
+        result = timer.run(
+            schedule,
+            clock=ctx.clock,
+            sleep=ctx.sleep,
+            out=ctx.stdout,
+            label=label,
+            bell=bool(cfg["bell"]) and not args.no_bell,
+            tty=isatty(ctx.stdout),
+            on_record=on_record,
+            # Poll keys a few times a second so a pause feels immediate.
+            tick=0.25 if poll is not None else 1.0,
+            report_every=5.0 if args.seconds else 60.0,
+            paint=painter,
+            notify=notifier,
+            keys=poll,
+        )
+    summary = (
+        f"Focused {span(result.focus_seconds)}: "
+        f"{result.completed} of {blocks} work block(s) completed"
     )
-    result = timer.run(
-        schedule,
-        clock=ctx.clock,
-        sleep=ctx.sleep,
-        out=ctx.stdout,
-        label=label,
-        bell=bool(cfg["bell"]) and not args.no_bell,
-        tty=isatty(ctx.stdout),
-        on_record=on_record,
-        report_every=5.0 if args.seconds else 60.0,
-        paint=painter,
-        notify=notifier,
-    )
-    focused = (
-        f"{result.focus_seconds:.0f}s" if args.seconds else fmt_minutes(result.focus_seconds / 60)
-    )
-    summary = f"Focused {focused}: {result.completed} of {blocks} work block(s) completed"
+    pauses = ""
+    if result.pauses:
+        pauses = f" Paused {result.pauses} time(s), {span(result.paused_seconds)} in total."
     if result.interrupted:
         partial = any(r["status"] == timer.INTERRUPTED for r in result.records)
-        ctx.out(summary + (", 1 interrupted." if partial else ".") + " Stopped.")
+        ctx.out(summary + (", 1 interrupted." if partial else ".") + pauses + " Stopped.")
         return EXIT_INTERRUPTED
-    ctx.out(summary + ".")
+    ctx.out(summary + "." + pauses)
     return EXIT_OK
 
 
@@ -258,8 +272,14 @@ def cmd_log(ctx: _Ctx, args: argparse.Namespace) -> int:
     for line in lines[1:]:
         ctx.out(line)
     total = sum(s.minutes for s in sessions)
+    paused = [s for s in sessions if s.pauses]
+    note = ""
+    if paused:
+        held = sum(s.paused_minutes for s in paused)
+        note = (f" {sum(s.pauses for s in paused)} pause(s) in {len(paused)} session(s),"
+                f" {fmt_minutes(held)} on hold (not counted).")
     ctx.out()
-    ctx.out(f"{len(sessions)} session(s), {fmt_minutes(total)} focused.")
+    ctx.out(f"{len(sessions)} session(s), {fmt_minutes(total)} focused.{note}")
     return EXIT_OK
 
 
@@ -367,6 +387,7 @@ def main(
     now: Optional[Callable[[], datetime]] = None,
     tz: Optional[tzinfo] = None,
     notifier: Optional[Callable[[], Optional[notify.Notifier]]] = None,
+    key_reader: Optional[Callable[[], ContextManager[Optional[keys.Poll]]]] = None,
 ) -> int:
     if stdout is None:
         stdout = sys.stdout
@@ -396,6 +417,7 @@ def main(
         now=now or (lambda: datetime.now().astimezone()),
         tz=tz,
         notifier=notifier,
+        key_reader=key_reader,
     )
     try:
         return COMMANDS[args.command](ctx, args)

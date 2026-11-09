@@ -81,16 +81,31 @@ def _iso(epoch: float) -> str:
 
 
 def make_record(
-    start: float, elapsed: float, planned: float, label: Optional[str], status: str
+    start: float,
+    elapsed: float,
+    planned: float,
+    label: Optional[str],
+    status: str,
+    paused: float = 0.0,
+    pauses: int = 0,
 ) -> dict:
-    return {
+    """One log line. ``elapsed`` is focused time; ``paused`` is wall time on hold.
+
+    The pause fields are only written when the block was paused, so logs of
+    unpaused sessions look exactly as they did before pausing existed.
+    """
+    record = {
         "start": _iso(start),
-        "end": _iso(start + elapsed),
+        "end": _iso(start + elapsed + paused),
         "minutes": round(elapsed / 60, 2),
         "planned_minutes": round(planned / 60, 2),
         "label": label,
         "status": status,
     }
+    if pauses:
+        record["pauses"] = pauses
+        record["paused_minutes"] = round(paused / 60, 2)
+    return record
 
 
 @dataclass
@@ -98,6 +113,8 @@ class RunResult:
     completed: int = 0
     interrupted: bool = False
     focus_seconds: float = 0.0
+    pauses: int = 0
+    paused_seconds: float = 0.0
     records: list[dict] = field(default_factory=list)
 
 
@@ -121,6 +138,7 @@ def run(
     report_every: float = 60.0,
     paint: Optional[Callable[[str, str], str]] = None,
     notify: Optional[Callable[[str, str], None]] = None,
+    keys: Optional[Callable[[], Optional[str]]] = None,
 ) -> RunResult:
     """Run every phase of ``schedule``; return what happened.
 
@@ -131,6 +149,11 @@ def run(
 
     If ``notify`` is given it is called as ``notify(title, message)`` at every
     transition (a desktop notification); its errors are ignored.
+
+    If ``keys`` is given it is polled once per tick and must return the next
+    pressed key or ``None`` without blocking. ``p`` pauses the current phase
+    and ``p`` again resumes it; time spent paused pushes the phase end back and
+    is not counted as focus time.
     """
     paint = paint or (lambda _style, text: text)
     result = RunResult()
@@ -151,6 +174,9 @@ def run(
 
     phase: Optional[Phase] = None
     start = 0.0
+    paused_at: Optional[float] = None  # when the current pause began
+    paused_total = 0.0  # finished pauses in the current phase
+    pauses = 0  # pauses in the current phase
     try:
         for idx, phase in enumerate(schedule):
             start = clock()
@@ -159,7 +185,34 @@ def run(
             title = _phase_title(phase)
             last_bucket = None
             width = 0
+            paused_at, paused_total, pauses = None, 0.0, 0
             while True:
+                key = keys() if keys is not None else None
+                if key == "p":
+                    now = clock()
+                    if paused_at is None:
+                        paused_at = now
+                        pauses += 1
+                        result.pauses += 1
+                        if not tty:
+                            out.write(f"{title}: paused at {format_clock(end - now)} left"
+                                      f"{suffix}. Press p to resume.\n")
+                    else:
+                        gap = now - paused_at
+                        paused_total += gap
+                        result.paused_seconds += gap
+                        end += gap
+                        paused_at = None
+                        if not tty:
+                            out.write(f"{title}: resumed, {format_clock(end - now)} left"
+                                      f"{suffix}\n")
+                    out.flush()
+                if paused_at is not None:
+                    if tty:
+                        draw(f"{paint(style, title)}  {format_clock(end - paused_at)}"
+                             f"  {paint('note', 'paused, p to resume')}{suffix}")
+                    sleep(tick)
+                    continue
                 remaining = end - clock()
                 if remaining <= 0:
                     break
@@ -178,7 +231,8 @@ def run(
             if phase.kind == WORK:
                 result.completed += 1
                 result.focus_seconds += phase.seconds
-                emit(make_record(start, phase.seconds, phase.seconds, label, COMPLETED))
+                emit(make_record(start, phase.seconds, phase.seconds, label, COMPLETED,
+                                 paused_total, pauses))
             if bell:
                 out.write("\a")
             nxt = schedule[idx + 1] if idx + 1 < len(schedule) else None
@@ -195,11 +249,17 @@ def run(
         result.interrupted = True
         if tty:
             out.write("\n")
+        held = paused_total
+        if phase is not None and paused_at is not None:  # Ctrl+C while paused
+            gap = clock() - paused_at
+            held += gap
+            result.paused_seconds += gap
         if phase is not None and phase.kind == WORK:
-            elapsed = max(0.0, min(clock() - start, phase.seconds))
+            elapsed = max(0.0, min(clock() - start - held, phase.seconds))
             if elapsed >= MIN_RECORD_SECONDS:
                 result.focus_seconds += elapsed
-                emit(make_record(start, elapsed, phase.seconds, label, INTERRUPTED))
+                emit(make_record(start, elapsed, phase.seconds, label, INTERRUPTED,
+                                 held, pauses))
         out.flush()
     return result
 

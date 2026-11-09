@@ -50,9 +50,11 @@ class Session:
     planned_minutes: Optional[float]
     label: Optional[str]
     status: str
+    pauses: int = 0  # times the block was paused; absent in older logs
+    paused_minutes: float = 0.0  # wall time spent paused, not counted in ``minutes``
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "start": self.start.isoformat(timespec="seconds"),
             "end": self.end.isoformat(timespec="seconds"),
             "minutes": self.minutes,
@@ -60,6 +62,10 @@ class Session:
             "label": self.label,
             "status": self.status,
         }
+        if self.pauses:
+            data["pauses"] = self.pauses
+            data["paused_minutes"] = self.paused_minutes
+        return data
 
 
 def append_record(path: Path, record: dict) -> None:
@@ -106,7 +112,12 @@ def parse_record(obj: object) -> Session:
     status = obj.get("status", "completed")
     if status not in STATUSES:
         raise ValueError(f"unknown status {status!r}")
-    return Session(start, end, minutes, planned, label or None, status)
+    pauses_raw = obj.get("pauses", 0)
+    if isinstance(pauses_raw, bool) or not isinstance(pauses_raw, int) or pauses_raw < 0:
+        raise ValueError("pauses must be a non-negative whole number")
+    paused_raw = obj.get("paused_minutes")
+    paused = 0.0 if paused_raw is None else _number(paused_raw, "paused_minutes")
+    return Session(start, end, minutes, planned, label or None, status, pauses_raw, paused)
 
 
 def read_sessions(

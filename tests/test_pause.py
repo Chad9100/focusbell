@@ -219,7 +219,7 @@ def test_cli_pause_is_logged_and_summarised(tmp_path):
     clock = Clock()
     code, out, err = cli(START, tmp_path, clock, [(5, "p"), (12, "p")])
     assert code == 0, err
-    assert "p to pause, Ctrl+C to stop." in out
+    assert "p to pause, s to skip a break, Ctrl+C to stop." in out
     assert "Focused 20s: 1 of 1 work block(s) completed. Paused 1 time(s), 7s in total." in out
     lines = (tmp_path / "sessions.jsonl").read_text(encoding="utf-8").splitlines()
     record = json.loads(lines[0])

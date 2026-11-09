@@ -23,14 +23,14 @@ Estimates are rough working hours for one person.
 - [x] `--notify` flag and `notify` config key; silent fallback when unavailable
 - [x] Tests with the notifier injected like the clock
 
-## v0.3: pause and resume (about 4 h, mostly done)
+## v0.3: pause and resume (about 4 h, done)
 
 - [x] Press `p` to pause and resume when stdin is a terminal
 - [x] Paused time excluded from logged minutes; pauses counted in the record
       (`pauses` and `paused_minutes`, written only for paused blocks)
 - [x] Non-blocking key reading on Windows (`msvcrt`) and POSIX (`termios`)
-- [ ] Press `s` to skip the rest of a break (about 1 h; the key reader is in
-      place, this needs the loop to end the phase early and a test or two)
+- [x] Press `s` to skip the rest of a break (paused or not); ignored during
+      work, no bell or notification for a skipped break, counted in the summary
 
 ## v0.4: todo.txt integration (about 3 h)
 
@@ -61,4 +61,4 @@ Estimates are rough working hours for one person.
 - [ ] Stable log format documented with a version field and migration notes
 - [ ] Shell completion scripts; man-page style `--help` review
 
-**Total for v0.3 to v1.0: about 18 hours.**
+**Total for v0.4 to v1.0: about 17 hours.**

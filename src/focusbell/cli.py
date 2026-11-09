@@ -202,7 +202,8 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
         return f"{seconds:.0f}s" if args.seconds else fmt_minutes(seconds / 60)
 
     with ctx.key_reader() as poll:
-        controls = "p to pause, Ctrl+C to stop." if poll is not None else "Ctrl+C to stop."
+        controls = ("p to pause, s to skip a break, Ctrl+C to stop." if poll is not None
+                    else "Ctrl+C to stop.")
         ctx.out(
             f"focusbell: {blocks} x {_fmt_span(values['work'] * unit, args.seconds)} work, "
             f"{_fmt_span(values['short'] * unit, args.seconds)} short breaks, "
@@ -218,7 +219,7 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
             bell=bool(cfg["bell"]) and not args.no_bell,
             tty=isatty(ctx.stdout),
             on_record=on_record,
-            # Poll keys a few times a second so a pause feels immediate.
+            # Poll keys a few times a second so a pause or skip feels immediate.
             tick=0.25 if poll is not None else 1.0,
             report_every=5.0 if args.seconds else 60.0,
             paint=painter,
@@ -232,6 +233,8 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
     pauses = ""
     if result.pauses:
         pauses = f" Paused {result.pauses} time(s), {span(result.paused_seconds)} in total."
+    if result.skipped:
+        pauses += f" Skipped {result.skipped} break(s)."
     if result.interrupted:
         partial = any(r["status"] == timer.INTERRUPTED for r in result.records)
         ctx.out(summary + (", 1 interrupted." if partial else ".") + pauses + " Stopped.")

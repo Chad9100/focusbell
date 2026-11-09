@@ -90,33 +90,64 @@ Windows, `termios` cbreak mode on Linux/macOS, restored on exit), so nothing
 needs Enter and nothing is echoed. When stdin is not a terminal the timer runs
 exactly as before and the banner only mentions Ctrl+C.
 
-Real output from a demo where `p` was typed into the console about 3 s into
-the work block and again 4 s later (stdout redirected to a file, so the plain
+Real output from a demo where `p` was typed into the console about 2 s into
+the work block and again 5 s later (stdout redirected to a file, so the plain
 line format is used):
 
 ```text
 $ focusbell start --seconds --work 8 --short 2 --long 2 --cycles 1 --label demo --no-bell
-focusbell: 1 x 8s work, 2s short breaks, 2s long break after every 1. p to pause, Ctrl+C to stop.
+focusbell: 1 x 8s work, 2s short breaks, 2s long break after every 1. p to pause, s to skip a break, Ctrl+C to stop.
 Work 1/1: 00:08 left  [demo]
+Work 1/1: paused at 00:06 left  [demo]. Press p to resume.
+Work 1/1: resumed, 00:06 left  [demo]
 Work 1/1: 00:05 left  [demo]
-Work 1/1: paused at 00:05 left  [demo]. Press p to resume.
-Work 1/1: resumed, 00:05 left  [demo]
 Work block 1 done. Long break next.
 Long break: 00:02 left  [demo]
 All done. Nice work.
-Focused 8s: 1 of 1 work block(s) completed. Paused 1 time(s), 4s in total.
+Focused 8s: 1 of 1 work block(s) completed. Paused 1 time(s), 5s in total.
 ```
 
 The logged block keeps its 8 s of focus in `minutes`, while `end` is the real
 wall-clock end, and the pause is recorded alongside it:
 
 ```json
-{"start": "2026-11-10T01:24:36+00:00", "end": "2026-11-10T01:24:48+00:00", "minutes": 0.13, "planned_minutes": 0.13, "label": "demo", "status": "completed", "pauses": 1, "paused_minutes": 0.07}
+{"start": "2026-11-10T02:27:25+00:00", "end": "2026-11-10T02:27:38+00:00", "minutes": 0.13, "planned_minutes": 0.13, "label": "demo", "status": "completed", "pauses": 1, "paused_minutes": 0.08}
 ```
 
 `focusbell log` then adds a note to its footer, e.g.
 `1 session(s), 0m focused. 1 pause(s) in 1 session(s), 0m on hold (not counted).`
 Pressing Ctrl+C while paused logs only the time actually worked.
+
+### Skip a break
+
+When stdin is a terminal, press **s** during a short or long break to end it
+right away and start the next work block (or finish, if it was the last
+break). It works while the break is paused too; `s` during a work block is
+ignored. A skipped break rings no bell and sends no desktop notification,
+since you are evidently at the keyboard. Skipping adds nothing to the session
+log, which only records work blocks; the end-of-session summary counts the
+skipped breaks.
+
+Real output from a demo where `s` was typed into the console a few seconds
+into the short break and again a few seconds into the long break (stdout
+redirected to a file):
+
+```text
+$ focusbell start --seconds --work 3 --short 30 --long 30 --cycles 2 --label demo --no-bell
+focusbell: 2 x 3s work, 30s short breaks, 30s long break after every 2. p to pause, s to skip a break, Ctrl+C to stop.
+Work 1/2: 00:03 left  [demo]
+Work block 1 done. Short break next.
+Short break: 00:30 left  [demo]
+Short break skipped. Back to work.
+Work 2/2: 00:03 left  [demo]
+Work block 2 done. Long break next.
+Long break: 00:30 left  [demo]
+Long break skipped. All done. Nice work.
+Focused 6s: 2 of 2 work block(s) completed. Skipped 2 break(s).
+```
+
+The whole session took about 13 s instead of 66 s. On a terminal the
+countdown line stops at the time that was left and is marked `skipped`.
 
 ### Stopping
 

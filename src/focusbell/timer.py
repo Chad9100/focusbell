@@ -115,6 +115,7 @@ class RunResult:
     focus_seconds: float = 0.0
     pauses: int = 0
     paused_seconds: float = 0.0
+    skipped: int = 0  # breaks cut short with the s key
     records: list[dict] = field(default_factory=list)
 
 
@@ -153,7 +154,10 @@ def run(
     If ``keys`` is given it is polled once per tick and must return the next
     pressed key or ``None`` without blocking. ``p`` pauses the current phase
     and ``p`` again resumes it; time spent paused pushes the phase end back and
-    is not counted as focus time.
+    is not counted as focus time. ``s`` during a break (paused or not) ends
+    that break at once and starts the next phase; it is ignored during work.
+    A skipped break rings no bell and sends no notification, since whoever
+    pressed the key is clearly at the keyboard.
     """
     paint = paint or (lambda _style, text: text)
     result = RunResult()
@@ -186,8 +190,22 @@ def run(
             last_bucket = None
             width = 0
             paused_at, paused_total, pauses = None, 0.0, 0
+            skipped = False
             while True:
                 key = keys() if keys is not None else None
+                if key == "s" and phase.kind != WORK:
+                    now = clock()
+                    if paused_at is not None:  # skipping ends the pause too
+                        gap = now - paused_at
+                        result.paused_seconds += gap
+                        end += gap
+                        paused_at = None
+                    skipped = True
+                    result.skipped += 1
+                    if tty:
+                        draw(f"{paint(style, title)}  {format_clock(end - now)}"
+                             f"  {paint('note', 'skipped')}{suffix}")
+                    break
                 if key == "p":
                     now = clock()
                     if paused_at is None:
@@ -226,20 +244,21 @@ def run(
                         out.flush()
                 sleep(min(tick, remaining))
             if tty:
-                draw(f"{paint(style, title)}  {format_clock(0)}{suffix}")
+                if not skipped:
+                    draw(f"{paint(style, title)}  {format_clock(0)}{suffix}")
                 out.write("\n")
             if phase.kind == WORK:
                 result.completed += 1
                 result.focus_seconds += phase.seconds
                 emit(make_record(start, phase.seconds, phase.seconds, label, COMPLETED,
                                  paused_total, pauses))
-            if bell:
+            if bell and not skipped:
                 out.write("\a")
             nxt = schedule[idx + 1] if idx + 1 < len(schedule) else None
-            message = _transition_message(phase, nxt)
+            message = _transition_message(phase, nxt, skipped)
             out.write(paint("note", message) + "\n")
             out.flush()
-            if notify is not None:
+            if notify is not None and not skipped:
                 try:
                     notify("focusbell" + (f": {label}" if label else ""), message)
                 except Exception:  # noqa: BLE001 - never let a notification stop the timer
@@ -264,7 +283,11 @@ def run(
     return result
 
 
-def _transition_message(phase: Phase, nxt: Optional[Phase]) -> str:
+def _transition_message(phase: Phase, nxt: Optional[Phase], skipped: bool = False) -> str:
+    if skipped:
+        if nxt is None:
+            return f"{phase.name} skipped. All done. Nice work."
+        return f"{phase.name} skipped. Back to work."
     if nxt is None:
         return "All done. Nice work."
     if phase.kind == WORK:

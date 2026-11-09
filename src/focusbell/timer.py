@@ -120,6 +120,7 @@ def run(
     tick: float = 1.0,
     report_every: float = 60.0,
     paint: Optional[Callable[[str, str], str]] = None,
+    notify: Optional[Callable[[str, str], None]] = None,
 ) -> RunResult:
     """Run every phase of ``schedule``; return what happened.
 
@@ -127,6 +128,9 @@ def run(
     plain line is printed when a phase starts and every ``report_every``
     seconds. Ctrl+C (KeyboardInterrupt) stops the run; a work block in progress
     is recorded as interrupted with the minutes actually worked.
+
+    If ``notify`` is given it is called as ``notify(title, message)`` at every
+    transition (a desktop notification); its errors are ignored.
     """
     paint = paint or (lambda _style, text: text)
     result = RunResult()
@@ -178,8 +182,14 @@ def run(
             if bell:
                 out.write("\a")
             nxt = schedule[idx + 1] if idx + 1 < len(schedule) else None
-            out.write(paint("note", _transition_message(phase, nxt)) + "\n")
+            message = _transition_message(phase, nxt)
+            out.write(paint("note", message) + "\n")
             out.flush()
+            if notify is not None:
+                try:
+                    notify("focusbell" + (f": {label}" if label else ""), message)
+                except Exception:  # noqa: BLE001 - never let a notification stop the timer
+                    pass
             phase = None
     except KeyboardInterrupt:
         result.interrupted = True

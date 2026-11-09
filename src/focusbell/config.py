@@ -14,6 +14,7 @@ DEFAULTS: dict[str, Any] = {
     "long": 15,
     "cycles": 4,
     "bell": True,
+    "notify": False,
     "color": "auto",
 }
 
@@ -63,7 +64,7 @@ def validate(key: str, value: Any) -> Any:
         if not low <= number <= high:
             raise ConfigError(f"{key} must be between {_num(low)} and {_num(high)}, got {value}")
         return int(number) if kind == "int" else _num(number)
-    if key == "bell":
+    if key in ("bell", "notify"):
         if isinstance(value, bool):
             return value
         text = str(value).strip().lower()
@@ -71,7 +72,7 @@ def validate(key: str, value: Any) -> Any:
             return True
         if text in _FALSE:
             return False
-        raise ConfigError(f"bell must be true or false, got {value!r}")
+        raise ConfigError(f"{key} must be true or false, got {value!r}")
     if key == "color":
         text = str(value).strip().lower()
         if text not in COLOR_MODES:

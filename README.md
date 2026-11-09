@@ -1,7 +1,8 @@
 # focusbell
 
 A Pomodoro-style focus timer for the terminal. It runs work/break cycles with a
-live countdown, rings the terminal bell when a phase ends, and logs every work
+live countdown, rings the terminal bell (and optionally shows a desktop
+notification) when a phase ends, and logs every work
 block so you can see how much focused time you actually put in.
 
 **Who it is for:** people who live in a terminal and want a small timer that
@@ -27,7 +28,8 @@ That puts a `focusbell` command on your PATH. `python -m focusbell` works too.
 
 ```sh
 focusbell start [--work 25] [--short 5] [--long 15] [--cycles 4] [--sets 1]
-                [--label TEXT] [--no-bell] [--seconds] [--color auto|always|never]
+                [--label TEXT] [--no-bell] [--notify | --no-notify] [--seconds]
+                [--color auto|always|never]
 ```
 
 Work blocks are separated by short breaks, and every `--cycles`-th block is
@@ -57,6 +59,26 @@ Focused 6s: 2 of 2 work block(s) completed.
 
 (The four bell characters, one per transition, are invisible here; `--no-bell`
 turns them off.)
+
+### Desktop notifications
+
+`--notify` also pops up a desktop notification at every transition, so you
+notice the end of a block even when the terminal is hidden. It uses tools the
+OS already has, with no extra Python packages:
+
+| Platform | Tool |
+| --- | --- |
+| Linux | `notify-send` (libnotify) |
+| macOS | `osascript` (`display notification`) |
+| Windows | a PowerShell toast (Windows PowerShell or `pwsh`) |
+
+The notification title is `focusbell` (plus `: LABEL` when you pass
+`--label`) and the text is the same line the terminal prints, e.g. `Work
+block 1 done. Short break next.` The helper is started in the background and
+not waited for, so it never delays the countdown. If the tool is missing or
+fails, focusbell carries on silently with the bell and terminal output.
+Turn it on permanently with `focusbell config set notify true`; `--no-notify`
+turns it off for one run.
 
 Press **Ctrl+C** at any time to stop. A work block in progress is saved as
 `interrupted` with the minutes you actually worked, and the command exits with
@@ -174,12 +196,17 @@ $ focusbell config set work 50
 work = 50
 $ focusbell config set cycles 20
 focusbell: error: cycles must be between 1 and 12, got 20
+$ focusbell config set notify maybe
+focusbell: error: notify must be true or false, got 'maybe'
+$ focusbell config set notify on
+notify = true
 $ focusbell config get
 work = 50
 short = 5
 long = 15
 cycles = 4
 bell = true
+notify = true
 color = "auto"
 ```
 
@@ -190,6 +217,7 @@ color = "auto"
 | `long` | 1 to 120 | 15 |
 | `cycles` | whole number 1 to 12 | 4 |
 | `bell` | true/false (also yes/no, on/off, 1/0) | true |
+| `notify` | true/false, same spellings as `bell` | false |
 | `color` | auto, always, never | auto |
 
 Command-line flags always win over config values.
@@ -223,6 +251,8 @@ pytest -q
 
 The timer loop takes its `clock` and `sleep` functions as arguments, so the
 tests drive a fake clock and a full four-block Pomodoro runs in milliseconds.
+The desktop notifier is injected the same way, so tests never pop up real
+notifications.
 Tests point `FOCUSBELL_HOME` at a temporary directory and never touch your real
 log. CI runs the suite on Ubuntu and Windows with Python 3.10, 3.12 and 3.13.
 

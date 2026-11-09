@@ -16,12 +16,12 @@ Estimates are rough working hours for one person.
 - [x] `--color auto|always|never`, `NO_COLOR`, ASCII fallback for bars
 - [x] Injectable clock/sleep; pytest suite; CI on Ubuntu and Windows
 
-## v0.2: desktop notifications (about 4 h)
+## v0.2: desktop notifications (about 4 h, done)
 
-- [ ] Notify at each transition: `notify-send` on Linux, `osascript` on macOS,
+- [x] Notify at each transition: `notify-send` on Linux, `osascript` on macOS,
       a PowerShell toast on Windows (no new Python dependencies)
-- [ ] `--notify` flag and `notify` config key; silent fallback when unavailable
-- [ ] Tests with the notifier injected like the clock
+- [x] `--notify` flag and `notify` config key; silent fallback when unavailable
+- [x] Tests with the notifier injected like the clock
 
 ## v0.3: pause and resume (about 4 h)
 
@@ -58,4 +58,4 @@ Estimates are rough working hours for one person.
 - [ ] Stable log format documented with a version field and migration notes
 - [ ] Shell completion scripts; man-page style `--help` review
 
-**Total for v0.2 to v1.0: about 22 hours.**
+**Total for v0.3 to v1.0: about 18 hours.**

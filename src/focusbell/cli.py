@@ -12,7 +12,7 @@ from datetime import date, datetime, tzinfo
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence, TextIO
 
-from . import __version__, config, timer
+from . import __version__, config, notify, timer
 from .log import Session, append_record, data_dir, log_path, read_sessions
 from .render import (
     BLOCK_EMPTY,
@@ -45,6 +45,7 @@ class _Ctx:
         sleep: Callable[[float], None],
         now: Callable[[], datetime],
         tz: Optional[tzinfo],
+        notifier: Optional[Callable[[], Optional[notify.Notifier]]] = None,
     ):
         self.stdout = stdout
         self.stderr = stderr
@@ -53,6 +54,7 @@ class _Ctx:
         self.sleep = sleep
         self.now = now
         self.tz = tz
+        self.notifier = notifier or (lambda: notify.system_notifier(environ=environ))
 
     def out(self, text: str = "") -> None:
         self.stdout.write(text + "\n")
@@ -122,6 +124,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="how many rounds of CYCLES work blocks to run (default 1)")
     p.add_argument("--label", help="what you are working on, stored with each session")
     p.add_argument("--no-bell", action="store_true", help="do not ring the terminal bell")
+    p.add_argument("--notify", action=argparse.BooleanOptionalAction, default=None,
+                   help="show a desktop notification at each transition "
+                        "(default: the notify config key, off)")
     p.add_argument("--seconds", action="store_true",
                    help="treat durations as seconds instead of minutes (for quick demos)")
 
@@ -186,6 +191,9 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
         except OSError as exc:
             ctx.warn(f"could not write session log {path}: {exc}")
 
+    want_notify = cfg["notify"] if args.notify is None else args.notify
+    notifier = ctx.notifier() if want_notify else None
+
     blocks = values["cycles"] * args.sets
     ctx.out(
         f"focusbell: {blocks} x {_fmt_span(values['work'] * unit, args.seconds)} work, "
@@ -204,6 +212,7 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
         on_record=on_record,
         report_every=5.0 if args.seconds else 60.0,
         paint=painter,
+        notify=notifier,
     )
     focused = (
         f"{result.focus_seconds:.0f}s" if args.seconds else fmt_minutes(result.focus_seconds / 60)
@@ -357,6 +366,7 @@ def main(
     sleep: Optional[Callable[[float], None]] = None,
     now: Optional[Callable[[], datetime]] = None,
     tz: Optional[tzinfo] = None,
+    notifier: Optional[Callable[[], Optional[notify.Notifier]]] = None,
 ) -> int:
     if stdout is None:
         stdout = sys.stdout
@@ -385,6 +395,7 @@ def main(
         sleep=sleep or time.sleep,
         now=now or (lambda: datetime.now().astimezone()),
         tz=tz,
+        notifier=notifier,
     )
     try:
         return COMMANDS[args.command](ctx, args)

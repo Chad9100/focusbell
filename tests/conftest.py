@@ -54,7 +54,8 @@ def clock():
 
 @pytest.fixture
 def run(isolated_home):
-    def _run(*argv, stdout=None, clock=None, now=None, tz=timezone.utc, environ=None):
+    def _run(*argv, stdout=None, clock=None, now=None, tz=timezone.utc, environ=None,
+             notifier=None):
         out = stdout if stdout is not None else io.StringIO()
         err = io.StringIO()
         clk = clock or FakeClock()
@@ -68,6 +69,7 @@ def run(isolated_home):
             sleep=clk.sleep,
             now=now or (lambda: datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc)),
             tz=tz,
+            notifier=notifier,
         )
         return code, out.getvalue(), err.getvalue()
 

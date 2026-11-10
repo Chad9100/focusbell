@@ -54,6 +54,8 @@ def _description(s: Session) -> str:
         text += f" of {_minutes(s.planned_minutes)} planned"
     if s.pauses:
         text += f"; paused {s.pauses}x ({_minutes(s.paused_minutes)} min)"
+    if s.note:
+        text += "\n" + " ".join(s.note.split())
     return text
 
 

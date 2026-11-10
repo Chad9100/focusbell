@@ -163,9 +163,11 @@ def render_html(
     if not in_range:
         h.append('<p class="muted">No sessions in this period.</p>')
     else:
+        with_notes = any(s.note for s in in_range)
         h.append('<div class="scroll"><table class="data"><thead><tr><th>Date</th><th>Start</th>'
                  '<th>End</th><th class="num">Minutes</th><th>Status</th><th>Label</th>'
-                 "</tr></thead><tbody>")
+                 + ("<th>Note</th>" if with_notes else "")
+                 + "</tr></thead><tbody>")
         for s in sorted(in_range, key=lambda s: s.start, reverse=True):
             start = to_local(s.start, tz)
             end = to_local(s.end, tz)
@@ -175,7 +177,10 @@ def render_html(
             h.append(
                 f"<tr><td>{start:%Y-%m-%d}</td><td>{start:%H:%M}</td><td>{end:%H:%M}</td>"
                 f'<td class="num">{s.minutes:.1f}</td><td>{status}</td>'
-                f"<td>{escape(s.label) if s.label else '-'}</td></tr>"
+                f"<td>{escape(s.label) if s.label else '-'}</td>"
+                + (f"<td>{escape(' '.join(s.note.split())) if s.note else '-'}</td>"
+                   if with_notes else "")
+                + "</tr>"
             )
         h.append("</tbody></table></div>")
     h.append("</main></body>")

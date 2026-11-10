@@ -127,11 +127,14 @@ def parse_record(obj: object) -> Session:
                    note or None)
 
 
-def set_note(path: Path, note: str) -> Optional[Session]:
+def set_note(
+    path: Path, note: str, select: Optional[Callable[[Session], bool]] = None
+) -> Optional[Session]:
     """Store ``note`` on the most recent session, rewriting the log atomically.
 
-    Every other line (corrupt ones included) is kept byte for byte. Returns the
-    updated session, or None when the log holds no valid session.
+    With ``select``, only sessions it accepts are candidates. Every other line
+    (corrupt ones included) is kept byte for byte. Returns the updated session,
+    or None when the log holds no matching valid session.
     """
     if not path.exists():
         return None
@@ -146,6 +149,8 @@ def set_note(path: Path, note: str) -> Optional[Session]:
             obj = json.loads(text)
             session = parse_record(obj)
         except (ValueError, TypeError, OverflowError):
+            continue
+        if select is not None and not select(session):
             continue
         parsed[i] = obj
         if best is None or session.start >= best[0]:

@@ -92,6 +92,16 @@ class _Ctx:
         return Painter(use_color(mode, self.stdout, self.environ))
 
 
+def _start_minute(value: str) -> str:
+    try:
+        parsed = datetime.strptime(value.strip().replace("T", " "), "%Y-%m-%d %H:%M")
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"invalid start {value!r} (expected 'YYYY-MM-DD HH:MM', local time)"
+        ) from None
+    return parsed.strftime("%Y-%m-%d %H:%M")
+
+
 def _since(value: str) -> date:
     try:
         return date.fromisoformat(value)
@@ -172,6 +182,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("note", parents=[color],
                        help="attach a note to the most recent session")
     p.add_argument("text", nargs="+", help="the note (replaces any earlier note)")
+    p.add_argument("--start", type=_start_minute, metavar="'YYYY-MM-DD HH:MM'",
+                   help="attach to the session that started at this local time "
+                        "(as shown by `log`) instead of the latest")
 
     p = sub.add_parser("stats", parents=[color], help="focus minutes per day, totals, streak")
     p.add_argument("--days", type=_positive_int, default=7,
@@ -437,11 +450,17 @@ def cmd_note(ctx: _Ctx, args: argparse.Namespace) -> int:
         ctx.error("the note is empty")
         return EXIT_USAGE
     try:
-        session = set_note(log_path(ctx.environ), text)
+        select = None
+        if args.start:
+            select = lambda s: to_local(s.start, ctx.tz).strftime("%Y-%m-%d %H:%M") == args.start
+        session = set_note(log_path(ctx.environ), text, select)
     except OSError as exc:
         ctx.error(f"could not update the log: {exc}")
         return EXIT_ERROR
     if session is None:
+        if args.start:
+            ctx.error(f"no session started at {args.start} (see `focusbell log`)")
+            return EXIT_ERROR
         ctx.error("no sessions logged yet, so there is nothing to attach a note to")
         return EXIT_ERROR
     start = to_local(session.start, ctx.tz)

@@ -581,7 +581,19 @@ Date        Start  End    Minutes  Status       Label   Note
 time). A second note replaces the first. The log is rewritten atomically and
 every other line is left untouched. `log` shows a Note column once any session
 has a note; `export` adds it to CSV (a trailing `note` column) and JSON (a
-`note` key, only on noted sessions). The HTML report does not list notes yet.
+`note` key, only on noted sessions). The HTML report gets a Note column when
+any listed session has a note, and the ics export appends the note to the
+event description.
+
+To note an earlier session, pass the local start time shown by `log`
+(output from a real run):
+
+```text
+$ focusbell note --start "2026-11-09 09:00" outline done
+Noted the 2026-11-09 09:00 session (thesis): outline done
+$ focusbell note --start "2026-11-09 09:01" x
+focusbell: error: no session started at 2026-11-09 09:01 (see `focusbell log`)
+```
 
 ### Export
 

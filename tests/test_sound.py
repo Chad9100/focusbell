@@ -293,3 +293,142 @@ def test_cli_sound_with_no_bell_warns_and_stays_silent(tmp_path):
 def test_cli_sound_and_no_sound_are_exclusive(tmp_path, capsys):
     code, _, _ = run_cli(tmp_path / "home", *SHORT_RUN, "--sound", "x.wav", "--no-sound")
     assert code == 2
+
+
+# ------------------------------------------------------------ break / work sounds
+
+
+def tagged(name, plays):
+    def play(last):
+        plays.append((name, last))
+        return True
+    return play
+
+
+def test_timer_break_and_work_sounds_pick_by_next_phase():
+    # Schedule: work, short break, work, long break -> 4 transitions.
+    plays = []
+    _, out = run_timer(sound=tagged("any", plays), sound_break=tagged("break", plays),
+                       sound_work=tagged("work", plays))
+    assert plays == [("break", False), ("work", False), ("break", False), ("break", True)]
+    assert "\a" not in out
+
+
+def test_timer_missing_specific_sound_falls_back_to_general():
+    plays = []
+    run_timer(sound=tagged("any", plays), sound_work=tagged("work", plays))
+    assert [name for name, _ in plays] == ["any", "work", "any", "any"]
+
+
+def test_timer_only_specific_sound_rings_bell_elsewhere():
+    plays = []
+    _, out = run_timer(sound_work=tagged("work", plays))
+    assert plays == [("work", False)]
+    assert out.count("\a") == 3
+
+
+def test_timer_failing_specific_sound_falls_back_to_bell():
+    _, out = run_timer(sound=lambda last: True, sound_break=lambda last: False)
+    assert out.count("\a") == 3  # every break-ward transition; "back to work" played
+
+
+class PathPlayer(FakePlayer):
+    """Records which file each play came from."""
+
+    def __call__(self, path):
+        self.paths.append(path)
+
+        def play(last):
+            self.plays.append((path.name, last))
+            return True
+
+        return play
+
+
+SET_RUN = ("start", "--seconds", "--work", "1", "--short", "1", "--long", "1", "--cycles", "2")
+
+
+def test_cli_break_and_work_flags(tmp_path):
+    brk = make_wav(tmp_path / "break.wav")
+    wrk = make_wav(tmp_path / "work.wav")
+    player = PathPlayer()
+    code, out, err = run_cli(tmp_path / "home", *SET_RUN, "--sound-break", str(brk),
+                             "--sound-work", str(wrk), player=player)
+    assert code == 0, err
+    assert player.plays == [("break.wav", False), ("work.wav", False),
+                            ("break.wav", False), ("break.wav", True)]
+    assert "\a" not in out and err == ""
+
+
+def test_cli_specific_sound_from_config_falls_back_to_sound_flag(tmp_path):
+    home = tmp_path / "home"
+    ding = make_wav(tmp_path / "ding.wav")
+    wrk = make_wav(tmp_path / "work.wav")
+    assert run_cli(home, "config", "set", "sound_work", str(wrk))[0] == 0
+    player = PathPlayer()
+    code, _, err = run_cli(home, *SET_RUN, "--sound", str(ding), player=player)
+    assert code == 0, err
+    assert [name for name, _ in player.plays] == ["ding.wav", "work.wav", "ding.wav", "ding.wav"]
+
+
+def test_cli_bad_specific_flag_is_a_usage_error(tmp_path):
+    code, out, err = run_cli(tmp_path / "home", *SET_RUN,
+                             "--sound-work", str(tmp_path / "gone.wav"))
+    assert code == 2 and "sound file not found" in err
+    assert "Work 1/2" not in out
+
+
+def test_cli_missing_configured_specific_sound_is_ignored(tmp_path):
+    home = tmp_path / "home"
+    ding = make_wav(tmp_path / "ding.wav")
+    assert run_cli(home, "config", "set", "sound", str(ding))[0] == 0
+    assert run_cli(home, "config", "set", "sound_break", str(tmp_path / "moved.wav"))[0] == 0
+    player = PathPlayer()
+    code, out, err = run_cli(home, *SET_RUN, player=player)
+    assert code == 0
+    assert "(from the sound_break config key); ignoring it" in err
+    assert [name for name, _ in player.plays] == ["ding.wav"] * 4
+    assert "\a" not in out
+
+
+def test_cli_no_sound_drops_specific_config_keys(tmp_path):
+    home = tmp_path / "home"
+    wrk = make_wav(tmp_path / "work.wav")
+    assert run_cli(home, "config", "set", "sound_work", str(wrk))[0] == 0
+    player = PathPlayer()
+    _, out, _ = run_cli(home, *SET_RUN, "--no-sound", player=player)
+    assert player.paths == [] and out.count("\a") == 4
+
+
+def test_cli_specific_flag_with_no_sound_is_a_usage_error(tmp_path):
+    wrk = make_wav(tmp_path / "work.wav")
+    code, _, err = run_cli(tmp_path / "home", *SET_RUN, "--sound-work", str(wrk), "--no-sound")
+    assert code == 2 and "--sound-work cannot be combined with --no-sound" in err
+
+
+def test_cli_specific_flags_with_no_bell_warn_once(tmp_path):
+    brk = make_wav(tmp_path / "break.wav")
+    player = PathPlayer()
+    code, out, err = run_cli(tmp_path / "home", *SET_RUN, "--sound-break", str(brk),
+                             "--no-bell", player=player)
+    assert code == 0
+    assert err.count("--sound-break has no effect with the bell turned off") == 1
+    assert player.paths == [] and "\a" not in out
+
+
+def test_cli_no_player_warns_once_for_several_files(tmp_path):
+    brk = make_wav(tmp_path / "break.wav")
+    wrk = make_wav(tmp_path / "work.wav")
+    code, out, err = run_cli(tmp_path / "home", *SET_RUN, "--sound-break", str(brk),
+                             "--sound-work", str(wrk), player=FakePlayer(available=False))
+    assert code == 0
+    assert err.count("no WAV player found") == 1
+    assert out.count("\a") == 4
+
+
+def test_specific_sound_config_keys_validate_as_paths():
+    for key in ("sound_break", "sound_work"):
+        assert config.DEFAULTS[key] == ""
+        assert config.validate(key, " a.wav ") == "a.wav"
+        with pytest.raises(config.ConfigError, match=f"{key} must be a single-line path"):
+            config.validate(key, "a\nb")

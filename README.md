@@ -30,6 +30,7 @@ That puts a `focusbell` command on your PATH. `python -m focusbell` works too.
 focusbell start [--work 25] [--short 5] [--long 15] [--cycles 4] [--sets 1]
                 [--label TEXT | --task N] [--todo-file PATH] [--tally | --no-tally]
                 [--no-bell] [--sound PATH | --no-sound]
+                [--sound-break PATH] [--sound-work PATH]
                 [--notify | --no-notify] [--seconds] [--color auto|always|never]
 ```
 
@@ -227,6 +228,35 @@ sound = "moved.wav"
 $ focusbell start --seconds --work 1 --short 1 --long 1 --cycles 1
 focusbell: warning: sound file not found: moved.wav (from the sound config key); using the terminal bell
 ```
+
+#### Different sounds for breaks and work
+
+`--sound-break PATH` plays when a break starts and when the whole session
+ends; `--sound-work PATH` plays when a break ends and it is time to work
+again. Each falls back to `--sound` (and then the bell), so you can set just
+one of them. The config keys are `sound_break` and `sound_work`. Real output
+from this Windows PC (break.wav played three times, work.wav once, and the
+bell never rang):
+
+```text
+$ focusbell start --seconds --work 2 --short 1 --long 1 --cycles 2 --sound-break break.wav --sound-work work.wav | cat
+focusbell: 2 x 2s work, 1s short breaks, 1s long break after every 2. p to pause, s to skip a break, Ctrl+C to stop.
+Work 1/2: 00:02 left
+Work block 1 done. Short break next.
+Short break: 00:01 left
+Short break over. Back to work.
+Work 2/2: 00:02 left
+Work block 2 done. Long break next.
+Long break: 00:01 left
+All done. Nice work.
+Focused 4s: 2 of 2 work block(s) completed.
+$ focusbell start --sound-work work.wav --no-sound
+focusbell: error: --sound-work cannot be combined with --no-sound
+```
+
+The same rules as `--sound` apply: a bad file given on the command line is
+refused, a missing configured `sound_break` or `sound_work` file is skipped
+with a warning, and `--no-sound` ignores all three config keys.
 
 ### Pause and resume
 
@@ -602,6 +632,8 @@ todo_file = ""
 tally = false
 weekly_goal = 0
 sound = ""
+sound_break = ""
+sound_work = ""
 ```
 
 | Key | Allowed values | Default |
@@ -617,6 +649,8 @@ sound = ""
 | `tally` | true/false: bump `pomodoros:N` on the `--task` line per completed block | false |
 | `weekly_goal` | whole minutes 0 to 10080 of focus per week (0 = no goal) | 0 |
 | `sound` | path to a WAV played instead of the bell (empty = bell) | empty |
+| `sound_break` | WAV for "break starts" and "all done" (empty = use `sound`) | empty |
+| `sound_work` | WAV for "back to work" (empty = use `sound`) | empty |
 
 Command-line flags always win over config values.
 

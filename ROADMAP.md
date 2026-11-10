@@ -65,8 +65,9 @@ Estimates are rough working hours for one person.
 
 ## v0.8: richer sounds and notes (about 5 h)
 
-- [ ] Separate sounds for "break starts" and "back to work"
-      (`--sound-break`, `--sound-work`, falling back to `--sound`) (about 1 h)
+- [x] Separate sounds for "break starts" and "back to work"
+      (`--sound-break`, `--sound-work`, falling back to `--sound`;
+      `sound_break` / `sound_work` config keys) (about 1 h)
 - [ ] `focusbell note TEXT` attaches a note to the most recent session; notes
       shown in `log`, exported to CSV/JSON and listed in the HTML report
       (about 2 h)

@@ -151,6 +151,8 @@ def run(
     notify: Optional[Callable[[str, str], None]] = None,
     keys: Optional[Callable[[], Optional[str]]] = None,
     sound: Optional[Callable[[bool], bool]] = None,
+    sound_break: Optional[Callable[[bool], bool]] = None,
+    sound_work: Optional[Callable[[bool], bool]] = None,
 ) -> RunResult:
     """Run every phase of ``schedule``; return what happened.
 
@@ -165,6 +167,9 @@ def run(
     If ``sound`` is given and ``bell`` is on, it is called as ``sound(last)``
     instead of writing the terminal bell (``last`` is True for the final
     transition). When it returns False or raises, the bell is written instead.
+    ``sound_work`` replaces it when the next phase is work ("back to work") and
+    ``sound_break`` at every other transition (a break starts, or the session
+    is over); either may be None to use ``sound``.
 
     If ``keys`` is given it is polled once per tick and must return the next
     pressed key or ``None`` without blocking. ``p`` pauses the current phase
@@ -268,7 +273,9 @@ def run(
                 emit(make_record(start, phase.seconds, phase.seconds, label, COMPLETED,
                                  paused_total, pauses))
             nxt = schedule[idx + 1] if idx + 1 < len(schedule) else None
-            if bell and not skipped and not _play(sound, nxt is None):
+            to_work = nxt is not None and nxt.kind == WORK
+            player = (sound_work if to_work else sound_break) or sound
+            if bell and not skipped and not _play(player, nxt is None):
                 out.write("\a")
             message = _transition_message(phase, nxt, skipped)
             out.write(paint("note", message) + "\n")

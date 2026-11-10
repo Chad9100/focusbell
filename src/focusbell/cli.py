@@ -33,6 +33,13 @@ EXIT_ERROR = 1
 EXIT_USAGE = 2
 EXIT_INTERRUPTED = 130
 
+# Config keys (and argparse dests) of the WAV files `start` can play.
+_SOUND_KEYS = ("sound", "sound_break", "sound_work")
+
+
+def _sound_flag(key: str) -> str:
+    return "--" + key.replace("_", "-")
+
 EXPORT_FIELDS = ["start", "end", "minutes", "planned_minutes", "label", "status"]
 
 
@@ -144,7 +151,13 @@ def build_parser() -> argparse.ArgumentParser:
                        help="play this WAV file at each transition instead of the terminal "
                             "bell (default: the sound config key)")
     audio.add_argument("--no-sound", action="store_true",
-                       help="ignore the sound config key for this run and use the bell")
+                       help="ignore the sound config keys for this run and use the bell")
+    p.add_argument("--sound-break", metavar="PATH",
+                   help="WAV played when a break starts and when the session ends "
+                        "(default: the sound_break config key, else --sound)")
+    p.add_argument("--sound-work", metavar="PATH",
+                   help="WAV played when a break ends and work resumes "
+                        "(default: the sound_work config key, else --sound)")
     p.add_argument("--notify", action=argparse.BooleanOptionalAction, default=None,
                    help="show a desktop notification at each transition "
                         "(default: the notify config key, off)")
@@ -260,25 +273,40 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
     notifier = ctx.notifier() if want_notify else None
 
     bell = bool(cfg["bell"]) and not args.no_bell
-    player: Optional[sound.Player] = None
-    sound_source = "" if args.no_sound else ((args.sound or "").strip() or cfg["sound"])
-    if sound_source and not bell:
-        if args.sound:
-            ctx.warn("--sound has no effect with the bell turned off")
-    elif sound_source:
-        try:
-            wav = sound.check_wav(Path(sound_source).expanduser())
-        except sound.SoundError as exc:
-            if args.sound:  # asked for on this run: refuse rather than surprise
-                ctx.error(str(exc))
-                return EXIT_USAGE
-            # From the config: a moved file must not cost a focus session.
-            ctx.warn(f"{exc} (from the sound config key); using the terminal bell")
-        else:
-            player = ctx.player(wav)
-            if player is None:
-                ctx.warn(f"no WAV player found ({sound.player_name()}); "
-                         "using the terminal bell")
+    # key -> (flag value, config value); flags win, --no-sound drops the config.
+    picked = {
+        key: ((getattr(args, key) or "").strip(), "" if args.no_sound else cfg[key])
+        for key in _SOUND_KEYS
+    }
+    flagged = [_sound_flag(key) for key, (flag, _) in picked.items() if flag]
+    if args.no_sound and flagged:
+        ctx.error(f"{flagged[0]} cannot be combined with --no-sound")
+        return EXIT_USAGE
+    players: dict[str, Optional[sound.Player]] = dict.fromkeys(_SOUND_KEYS)
+    if not bell:
+        if flagged:
+            ctx.warn(f"{', '.join(flagged)} has no effect with the bell turned off")
+    else:
+        wavs: dict[str, Path] = {}
+        for key, (flag, configured) in picked.items():
+            source = flag or configured
+            if not source:
+                continue
+            try:
+                wavs[key] = sound.check_wav(Path(source).expanduser())
+            except sound.SoundError as exc:
+                if flag:  # asked for on this run: refuse rather than surprise
+                    ctx.error(str(exc))
+                    return EXIT_USAGE
+                # From the config: a moved file must not cost a focus session.
+                fallback = ("using the terminal bell" if key == "sound"
+                            else "ignoring it")
+                ctx.warn(f"{exc} (from the {key} config key); {fallback}")
+        for key, wav in wavs.items():
+            players[key] = ctx.player(wav)
+        if wavs and not any(players.values()):
+            ctx.warn(f"no WAV player found ({sound.player_name()}); "
+                     "using the terminal bell")
 
     blocks = values["cycles"] * args.sets
 
@@ -311,7 +339,9 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
             paint=painter,
             notify=notifier,
             keys=poll,
-            sound=player,
+            sound=players["sound"],
+            sound_break=players["sound_break"],
+            sound_work=players["sound_work"],
         )
     summary = (
         f"Focused {span(result.focus_seconds)}: "

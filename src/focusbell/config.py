@@ -20,6 +20,8 @@ DEFAULTS: dict[str, Any] = {
     "tally": False,  # bump a pomodoros:N tag on the --task line per completed block
     "weekly_goal": 0,  # focus minutes per Monday-to-Sunday week; 0 = no goal
     "sound": "",  # WAV file played instead of the terminal bell; empty = bell
+    "sound_break": "",  # WAV for "break starts" / "all done"; empty = use sound
+    "sound_work": "",  # WAV for "back to work"; empty = use sound
 }
 
 # key -> (kind, minimum, maximum)
@@ -83,7 +85,7 @@ def validate(key: str, value: Any) -> Any:
         if text not in COLOR_MODES:
             raise ConfigError(f"color must be one of {', '.join(COLOR_MODES)}, got {value!r}")
         return text
-    if key in ("todo_file", "sound"):
+    if key in ("todo_file", "sound", "sound_break", "sound_work"):
         if not isinstance(value, str):
             raise ConfigError(f"{key} must be a path, got {value!r}")
         text = value.strip()

@@ -14,7 +14,7 @@ from typing import Callable, ContextManager, Mapping, Optional, Sequence, TextIO
 
 from . import __version__, config, keys, notify, report, sound, timer, todo
 from .ics import to_ics
-from .log import Session, append_record, data_dir, log_path, read_sessions
+from .log import Session, append_record, data_dir, log_path, read_sessions, set_note
 from .render import (
     BLOCK_EMPTY,
     BLOCK_FULL,
@@ -41,7 +41,7 @@ _SOUND_KEYS = ("sound", "sound_break", "sound_work")
 def _sound_flag(key: str) -> str:
     return "--" + key.replace("_", "-")
 
-EXPORT_FIELDS = ["start", "end", "minutes", "planned_minutes", "label", "status"]
+EXPORT_FIELDS = ["start", "end", "minutes", "planned_minutes", "label", "status", "note"]
 
 
 class _Ctx:
@@ -168,6 +168,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("log", parents=[color], help="show logged sessions as a table")
     p.add_argument("--since", type=_since, help="only sessions on or after DATE (YYYY-MM-DD)")
     p.add_argument("--limit", type=_positive_int, help="show only the last N sessions")
+
+    p = sub.add_parser("note", parents=[color],
+                       help="attach a note to the most recent session")
+    p.add_argument("text", nargs="+", help="the note (replaces any earlier note)")
 
     p = sub.add_parser("stats", parents=[color], help="focus minutes per day, totals, streak")
     p.add_argument("--days", type=_positive_int, default=7,
@@ -391,20 +395,27 @@ def cmd_log(ctx: _Ctx, args: argparse.Namespace) -> int:
     if not sessions:
         ctx.out("No sessions logged yet." if args.since is None else "No sessions since then.")
         return EXIT_OK
+    with_notes = any(s.note for s in sessions)
     rows = []
     for s in sessions:
         start = to_local(s.start, ctx.tz)
         end = to_local(s.end, ctx.tz)
-        rows.append([
+        row = [
             start.strftime("%Y-%m-%d"),
             start.strftime("%H:%M"),
             end.strftime("%H:%M"),
             f"{s.minutes:.1f}",
             s.status,
             s.label or "-",
-        ])
+        ]
+        if with_notes:
+            row.append(_shorten(" ".join((s.note or "-").split()), 40))
+        rows.append(row)
     paint = ctx.painter(args)
-    lines = table(["Date", "Start", "End", "Minutes", "Status", "Label"], rows, right=(3,))
+    headers = ["Date", "Start", "End", "Minutes", "Status", "Label"]
+    if with_notes:
+        headers.append("Note")
+    lines = table(headers, rows, right=(3,))
     ctx.out(paint("head", lines[0]))
     for line in lines[1:]:
         ctx.out(line)
@@ -417,6 +428,25 @@ def cmd_log(ctx: _Ctx, args: argparse.Namespace) -> int:
                 f" {fmt_minutes(held)} on hold (not counted).")
     ctx.out()
     ctx.out(f"{len(sessions)} session(s), {fmt_minutes(total)} focused.{note}")
+    return EXIT_OK
+
+
+def cmd_note(ctx: _Ctx, args: argparse.Namespace) -> int:
+    text = " ".join(" ".join(args.text).split())
+    if not text:
+        ctx.error("the note is empty")
+        return EXIT_USAGE
+    try:
+        session = set_note(log_path(ctx.environ), text)
+    except OSError as exc:
+        ctx.error(f"could not update the log: {exc}")
+        return EXIT_ERROR
+    if session is None:
+        ctx.error("no sessions logged yet, so there is nothing to attach a note to")
+        return EXIT_ERROR
+    start = to_local(session.start, ctx.tz)
+    ctx.out(f"Noted the {start.strftime('%Y-%m-%d %H:%M')} session "
+            f"({session.label or 'no label'}): {text}")
     return EXIT_OK
 
 
@@ -618,7 +648,7 @@ def _write_export(fh: TextIO, fmt: str, sessions: list[Session]) -> None:
     writer = csv.DictWriter(fh, fieldnames=EXPORT_FIELDS, lineterminator="\n")
     writer.writeheader()
     for rec in records:
-        writer.writerow({k: "" if rec[k] is None else rec[k] for k in EXPORT_FIELDS})
+        writer.writerow({k: "" if rec.get(k) is None else rec[k] for k in EXPORT_FIELDS})
 
 
 def cmd_export(ctx: _Ctx, args: argparse.Namespace) -> int:
@@ -669,6 +699,7 @@ def cmd_report(ctx: _Ctx, args: argparse.Namespace) -> int:
 COMMANDS = {
     "start": cmd_start,
     "log": cmd_log,
+    "note": cmd_note,
     "stats": cmd_stats,
     "report": cmd_report,
     "config": cmd_config,

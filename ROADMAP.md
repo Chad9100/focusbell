@@ -68,9 +68,10 @@ Estimates are rough working hours for one person.
 - [x] Separate sounds for "break starts" and "back to work"
       (`--sound-break`, `--sound-work`, falling back to `--sound`;
       `sound_break` / `sound_work` config keys) (about 1 h)
-- [ ] `focusbell note TEXT` attaches a note to the most recent session; notes
-      shown in `log`, exported to CSV/JSON and listed in the HTML report
-      (about 2 h)
+- [x] `focusbell note TEXT` attaches a note to the most recent session; notes
+      shown in `log` and exported to CSV/JSON (about 1.5 h)
+- [ ] Notes in the HTML report and the ics description (about 0.5 h)
+- [ ] `note --start` to pick a session other than the latest (about 0.5 h)
 - [ ] `focusbell relabel` to fix the label of the last session (or one picked
       by `--start`), rewriting the log atomically (about 2 h)
 

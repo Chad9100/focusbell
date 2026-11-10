@@ -52,6 +52,7 @@ class Session:
     status: str
     pauses: int = 0  # times the block was paused; absent in older logs
     paused_minutes: float = 0.0  # wall time spent paused, not counted in ``minutes``
+    note: Optional[str] = None  # free text added later with `focusbell note`
 
     def to_dict(self) -> dict:
         data = {
@@ -65,6 +66,8 @@ class Session:
         if self.pauses:
             data["pauses"] = self.pauses
             data["paused_minutes"] = self.paused_minutes
+        if self.note:
+            data["note"] = self.note
         return data
 
 
@@ -117,7 +120,47 @@ def parse_record(obj: object) -> Session:
         raise ValueError("pauses must be a non-negative whole number")
     paused_raw = obj.get("paused_minutes")
     paused = 0.0 if paused_raw is None else _number(paused_raw, "paused_minutes")
-    return Session(start, end, minutes, planned, label or None, status, pauses_raw, paused)
+    note = obj.get("note")
+    if note is not None and not isinstance(note, str):
+        raise ValueError("note must be a string")
+    return Session(start, end, minutes, planned, label or None, status, pauses_raw, paused,
+                   note or None)
+
+
+def set_note(path: Path, note: str) -> Optional[Session]:
+    """Store ``note`` on the most recent session, rewriting the log atomically.
+
+    Every other line (corrupt ones included) is kept byte for byte. Returns the
+    updated session, or None when the log holds no valid session.
+    """
+    if not path.exists():
+        return None
+    lines = path.read_bytes().split(b"\n")
+    best: Optional[tuple[datetime, int]] = None
+    parsed: dict[int, dict] = {}
+    for i, raw in enumerate(lines):
+        text = raw.decode("utf-8-sig", errors="replace").strip()
+        if not text:
+            continue
+        try:
+            obj = json.loads(text)
+            session = parse_record(obj)
+        except (ValueError, TypeError, OverflowError):
+            continue
+        parsed[i] = obj
+        if best is None or session.start >= best[0]:
+            best = (session.start, i)
+    if best is None:
+        return None
+    index = best[1]
+    obj = parsed[index]
+    obj["note"] = note
+    ending = b"\r" if lines[index].endswith(b"\r") else b""
+    lines[index] = json.dumps(obj, ensure_ascii=False).encode("utf-8") + ending
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_bytes(b"\n".join(lines))
+    os.replace(tmp, path)
+    return parse_record(obj)
 
 
 def read_sessions(

@@ -282,9 +282,9 @@ def test_export_csv(run, isolated_home):
     code, out, _ = run("export", "--format", "csv")
     assert code == 0
     lines = out.splitlines()
-    assert lines[0] == "start,end,minutes,planned_minutes,label,status"
+    assert lines[0] == "start,end,minutes,planned_minutes,label,status,note"
     assert len(lines) == 6
-    assert lines[1] == "2026-11-01T09:00:00+00:00,2026-11-01T09:25:00+00:00,25.0,25.0,old,completed"
+    assert lines[1] == "2026-11-01T09:00:00+00:00,2026-11-01T09:25:00+00:00,25.0,25.0,old,completed,"
 
 
 def test_export_json_shape(run, isolated_home):

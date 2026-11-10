@@ -562,13 +562,34 @@ Date        Start  End    Minutes  Status       Label
 
 `--since YYYY-MM-DD` shows only sessions from that day on.
 
+### Notes
+
+```text
+$ focusbell note stuck on the proof of lemma 2
+Noted the 2026-11-09 10:00 session (thesis): stuck on the proof of lemma 2
+$ focusbell log
+Date        Start  End    Minutes  Status       Label   Note
+----------  -----  -----  -------  -----------  ------  -----------------------------
+2026-11-09  09:00  09:25     25.0  completed    thesis  -
+2026-11-09  09:30  09:41     11.5  interrupted  email   -
+2026-11-09  10:00  10:25     25.0  completed    thesis  stuck on the proof of lemma 2
+
+3 session(s), 1h 02m focused.
+```
+
+`focusbell note TEXT` attaches a note to the most recent session (by start
+time). A second note replaces the first. The log is rewritten atomically and
+every other line is left untouched. `log` shows a Note column once any session
+has a note; `export` adds it to CSV (a trailing `note` column) and JSON (a
+`note` key, only on noted sessions). The HTML report does not list notes yet.
+
 ### Export
 
 ```text
 $ focusbell export --format csv
-start,end,minutes,planned_minutes,label,status
-2026-11-04T09:00:00-08:00,2026-11-04T09:25:00-08:00,25.0,25.0,thesis,completed
-2026-11-05T10:00:00-08:00,2026-11-05T10:25:00-08:00,25.0,25.0,email,completed
+start,end,minutes,planned_minutes,label,status,note
+2026-11-04T09:00:00-08:00,2026-11-04T09:25:00-08:00,25.0,25.0,thesis,completed,
+2026-11-05T10:00:00-08:00,2026-11-05T10:25:00-08:00,25.0,25.0,email,completed,
 ...
 
 $ focusbell export --format json
@@ -607,9 +628,19 @@ END:VEVENT
 
 `--format ics` writes one event per session (interrupted ones included, marked
 in the description) with UTC times, CRLF line endings and escaped, folded text,
-ready to import into any calendar app. Add `--skip-interrupted` (any format)
-to leave interrupted sessions out, e.g. `focusbell export --format ics
---skip-interrupted --output focus.ics`.
+ready to import into any calendar app.
+
+Add `--skip-interrupted` (any format) to leave interrupted sessions out. With
+three logged sessions, one of them interrupted (output from a real run):
+
+```text
+$ focusbell export --skip-interrupted
+start,end,minutes,planned_minutes,label,status,note
+2026-11-09T09:00:00+00:00,2026-11-09T09:25:00+00:00,25.0,25.0,thesis,completed,
+2026-11-09T10:00:00+00:00,2026-11-09T10:25:00+00:00,25.0,25.0,thesis,completed,
+```
+
+The CSV and JSON exports carry the session note (see below) when there is one.
 
 ### HTML report
 

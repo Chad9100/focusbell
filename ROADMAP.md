@@ -45,8 +45,8 @@ Estimates are rough working hours for one person.
 
 ## v0.5: weekly goals (about 3 h)
 
-- [ ] `config set weekly_goal 600` (minutes)
-- [ ] Goal progress bar in `stats` and a one-line summary after each session
+- [x] `config set weekly_goal 600` (minutes, Monday-to-Sunday local weeks)
+- [x] Goal progress bar in `stats` and a one-line summary after each session
 - [ ] Longest streak and best week in `stats`
 
 ## v0.6: HTML report (about 3 h)

@@ -142,3 +142,56 @@ def by_label(
         groups.values(),
         key=lambda t: (t.label is None, -t.minutes, t.label or ""),
     )
+
+
+def week_start(day: date) -> date:
+    """The Monday of the ISO week that contains ``day``."""
+    return day - timedelta(days=day.weekday())
+
+
+@dataclass
+class GoalProgress:
+    goal: int  # minutes
+    minutes: float  # focus minutes so far this week
+    first_day: date  # Monday
+    last_day: date  # Sunday
+    today: date
+
+    @property
+    def done(self) -> int:
+        """Focus minutes rounded the way they are displayed."""
+        return int(round(self.minutes))
+
+    @property
+    def met(self) -> bool:
+        return self.done >= self.goal
+
+    @property
+    def remaining(self) -> int:
+        return max(0, self.goal - self.done)
+
+    @property
+    def percent(self) -> int:
+        """Whole percent, rounded down so 100% only shows once the goal is met."""
+        return self.done * 100 // self.goal if self.goal else 0
+
+    @property
+    def days_left(self) -> int:
+        """Days left in the week, counting today."""
+        return (self.last_day - self.today).days + 1
+
+
+def goal_progress(
+    sessions: Iterable[Session], goal: int, today: date, tz: Optional[tzinfo] = None
+) -> GoalProgress:
+    """Focus time this week (Monday through ``today``, local days) against ``goal``.
+
+    Minutes are split at local midnight like the daily chart, so a session
+    that runs from Sunday night into Monday counts partly toward each week.
+    """
+    if goal < 1:
+        raise ValueError("goal must be at least 1 minute")
+    first = week_start(today)
+    by_day = minutes_by_day(sessions, tz)
+    minutes = sum(m for d, m in by_day.items() if first <= d <= today)
+    return GoalProgress(goal, minutes, first, first + timedelta(days=6), today)

@@ -327,6 +327,56 @@ Sun 11-08  ######################........   1h 15m
 Mon 11-09  ##################............   1h 02m
 ```
 
+### Weekly goal
+
+Set a target for focus time per week, in minutes:
+
+```text
+$ focusbell config set weekly_goal 600
+weekly_goal = 600
+$ focusbell config set weekly_goal 20000
+focusbell: error: weekly_goal must be between 0 and 10080, got 20000
+```
+
+Weeks run Monday to Sunday in local time, and minutes are split at midnight
+the same way as the daily chart, so a block that starts late on Sunday counts
+partly toward each week. Interrupted blocks count with the minutes actually
+worked. `focusbell config set weekly_goal 0` turns the goal off again.
+
+With a goal set, `focusbell stats` adds a progress bar for the current week
+(whatever `--days` window the chart shows), and `focusbell start` ends with a
+one-line summary that already includes the blocks just finished. Real output
+from a temporary `FOCUSBELL_HOME` with a few made-up sessions, run on Tuesday
+2026-11-10 with output redirected (hence the ASCII bars):
+
+```text
+$ focusbell stats --days 3
+Focus time, last 3 day(s) (2026-11-08 to 2026-11-10)
+
+Sun 11-08  ####################..........      50m
+Mon 11-09  ####################..........      50m
+Tue 11-10  ##############################   1h 15m
+
+Total       2h 55m in 5 session(s), avg 58m/day
+Completed   5 of 5 (100%), 0 interrupted
+Top labels  thesis (2h 05m), code review (25m), email (25m)
+Streak      3 day(s)
+Week goal   ####................  2h 05m of 10h 00m (20%), 7h 55m to go, 6 day(s) left
+$ focusbell start --seconds --work 3 --short 2 --long 2 --cycles 1 --label demo --no-bell
+focusbell: 1 x 3s work, 2s short breaks, 2s long break after every 1. Ctrl+C to stop.
+Work 1/1: 00:03 left  [demo]
+Work block 1 done. Long break next.
+Long break: 00:02 left  [demo]
+All done. Nice work.
+Focused 3s: 1 of 1 work block(s) completed.
+This week: 2h 05m of 10h 00m goal (20%), 7h 55m to go, 6 day(s) left.
+```
+
+The 50 minutes on Sunday belong to the previous week. "Days left" counts
+today. The percentage is rounded down, so 100% only shows once the goal is
+met; after that the line says `goal met` instead of what is left (shown in
+green when color is on) and the percentage keeps going past 100.
+
 ### Stats by task
 
 `focusbell stats --by task` swaps the daily chart for a table of focus time
@@ -452,6 +502,7 @@ notify = true
 color = "auto"
 todo_file = ""
 tally = false
+weekly_goal = 0
 ```
 
 | Key | Allowed values | Default |
@@ -465,6 +516,7 @@ tally = false
 | `color` | auto, always, never | auto |
 | `todo_file` | path to a todo.txt for `--task` (empty = unset) | empty |
 | `tally` | true/false: bump `pomodoros:N` on the `--task` line per completed block | false |
+| `weekly_goal` | whole minutes 0 to 10080 of focus per week (0 = no goal) | 0 |
 
 Command-line flags always win over config values.
 

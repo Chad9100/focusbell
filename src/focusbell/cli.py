@@ -18,6 +18,7 @@ from .render import (
     BLOCK_EMPTY,
     BLOCK_FULL,
     Painter,
+    bar,
     bar_chart,
     can_encode,
     fmt_minutes,
@@ -25,7 +26,7 @@ from .render import (
     table,
     use_color,
 )
-from .stats import by_label, compute_stats, to_local
+from .stats import GoalProgress, by_label, compute_stats, goal_progress, to_local
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -294,6 +295,12 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
                 f"(+{tally['added']}) in {todo_path}")
     if tally["error"]:
         ctx.warn(tally["error"])
+    if cfg["weekly_goal"]:
+        # Re-read the log so the blocks just written count. Corrupt lines were
+        # already reported by `stats`/`log`; don't repeat that after a session.
+        sessions = read_sessions(path)
+        today = to_local(ctx.now(), ctx.tz).date()
+        ctx.out(_goal_summary(goal_progress(sessions, cfg["weekly_goal"], today, ctx.tz)))
     return EXIT_INTERRUPTED if result.interrupted else EXIT_OK
 
 
@@ -373,7 +380,36 @@ def cmd_stats(ctx: _Ctx, args: argparse.Namespace) -> int:
         labels = "-"
     ctx.out(f"Top labels  {labels}")
     ctx.out(f"Streak      {st.streak} day(s)")
+    goal = ctx.load_config()["weekly_goal"]
+    if goal:
+        progress = goal_progress(sessions, goal, today, ctx.tz)
+        ctx.out(_goal_line(progress, unicode, paint))
     return EXIT_OK
+
+
+GOAL_BAR_WIDTH = 20
+
+
+def _goal_status(progress: GoalProgress) -> str:
+    if progress.met:
+        return "goal met"
+    return (f"{fmt_minutes(progress.remaining)} to go, "
+            f"{progress.days_left} day(s) left")
+
+
+def _goal_line(progress: GoalProgress, unicode: bool, paint: Painter) -> str:
+    """The `Week goal` row of `stats`: bar, minutes, percent and what is left."""
+    filled = bar(progress.done, progress.goal, GOAL_BAR_WIDTH, unicode)
+    status = _goal_status(progress)
+    return (f"Week goal   {paint('ok' if progress.met else 'bar', filled)}  "
+            f"{fmt_minutes(progress.done)} of {fmt_minutes(progress.goal)} "
+            f"({progress.percent}%), {paint('ok', status) if progress.met else status}")
+
+
+def _goal_summary(progress: GoalProgress) -> str:
+    """One line printed after a session when a weekly goal is set."""
+    return (f"This week: {fmt_minutes(progress.done)} of {fmt_minutes(progress.goal)} "
+            f"goal ({progress.percent}%), {_goal_status(progress)}.")
 
 
 TASK_WIDTH = 48

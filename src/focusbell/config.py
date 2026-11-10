@@ -18,6 +18,7 @@ DEFAULTS: dict[str, Any] = {
     "color": "auto",
     "todo_file": "",  # path to a todo.txt for `start --task N`; empty = not set
     "tally": False,  # bump a pomodoros:N tag on the --task line per completed block
+    "weekly_goal": 0,  # focus minutes per Monday-to-Sunday week; 0 = no goal
 }
 
 # key -> (kind, minimum, maximum)
@@ -26,6 +27,7 @@ _RANGES: dict[str, tuple[str, float, float]] = {
     "short": ("number", 1, 60),
     "long": ("number", 1, 120),
     "cycles": ("int", 1, 12),
+    "weekly_goal": ("int", 0, 10080),  # 10080 = every minute of a week
 }
 COLOR_MODES = ("auto", "always", "never")
 _TRUE = {"true", "yes", "on", "1"}

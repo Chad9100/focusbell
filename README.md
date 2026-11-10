@@ -313,7 +313,10 @@ Streak      3 day(s)
 `--days N` changes the window (1 to 366). Days are local calendar days; a
 session that runs past midnight is split between the two days. The streak
 counts consecutive days with focus time ending today, or ending yesterday if
-you have not started today yet.
+you have not started today yet. Below it come two all-time records over the
+whole log, whatever the window (see [Longest streak and best
+week](#longest-streak-and-best-week); the examples above were captured
+before those rows existed).
 
 If the terminal cannot encode the block characters (for example output
 redirected on Windows with code page 1252), the bars fall back to ASCII:
@@ -326,6 +329,37 @@ Sat 11-07  ##############################   1h 40m
 Sun 11-08  ######################........   1h 15m
 Mon 11-09  ##################............   1h 02m
 ```
+
+### Longest streak and best week
+
+After `Streak`, `focusbell stats` shows the longest run of consecutive active
+days and the Monday-to-Sunday week with the most focus time, searched over the
+whole log rather than the `--days` window. Real output from a temporary
+`FOCUSBELL_HOME` with a few made-up sessions (a busy week in October, then
+quieter ones), run on Tuesday 2026-11-10:
+
+```text
+$ focusbell stats --days 3
+Focus time, last 3 day(s) (2026-11-08 to 2026-11-10)
+
+Sun 11-08  ..............................       0m
+Mon 11-09  ##############################      50m
+Tue 11-10  ###############...............      25m
+
+Total       1h 15m in 2 session(s), avg 25m/day
+Completed   2 of 2 (100%), 0 interrupted
+Top labels  thesis (1h 15m)
+Streak      2 day(s)
+Best streak 5 day(s), 2026-10-19 to 2026-10-23
+Best week   6h 40m, week of 2026-10-19
+```
+
+Days and weeks are local and split at midnight like the daily chart; days
+after today are ignored. On a tie the more recent streak or week wins. When
+the best streak is the one still running it is marked `(current)`, and the
+best week gets `(this week)` if it is the current week (counted so far). With
+an empty log the rows read `0 day(s)` and `-`. `stats --by task` does not show
+them.
 
 ### Weekly goal
 

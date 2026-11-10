@@ -43,11 +43,11 @@ Estimates are rough working hours for one person.
 - [x] Optionally append a `pomodoros:N` tag to the task when a block completes
       (`--tally` / `tally` config key; atomic, byte-preserving write-back)
 
-## v0.5: weekly goals (about 3 h)
+## v0.5: weekly goals (about 3 h, done)
 
 - [x] `config set weekly_goal 600` (minutes, Monday-to-Sunday local weeks)
 - [x] Goal progress bar in `stats` and a one-line summary after each session
-- [ ] Longest streak and best week in `stats`
+- [x] Longest streak and best week in `stats` (all-time, whatever `--days`)
 
 ## v0.6: HTML report (about 3 h)
 

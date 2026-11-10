@@ -195,3 +195,68 @@ def goal_progress(
     by_day = minutes_by_day(sessions, tz)
     minutes = sum(m for d, m in by_day.items() if first <= d <= today)
     return GoalProgress(goal, minutes, first, first + timedelta(days=6), today)
+
+
+@dataclass
+class Record:
+    """All-time bests over the whole log, up to and including ``today``."""
+
+    streak_days: int
+    streak_first: Optional[date]  # None when nothing has been logged
+    streak_last: Optional[date]
+    streak_current: bool  # the best run is the one still going
+    week_minutes: float
+    week_first: Optional[date]  # Monday of the best week
+    week_current: bool
+
+
+def longest_streak(active_days: Iterable[date]) -> tuple[int, Optional[date], Optional[date]]:
+    """Longest run of consecutive days, as (length, first day, last day).
+
+    Ties go to the most recent run.
+    """
+    best: tuple[int, Optional[date], Optional[date]] = (0, None, None)
+    run_first: Optional[date] = None
+    prev: Optional[date] = None
+    for day in sorted(set(active_days)):
+        if prev is None or day - prev != timedelta(days=1):
+            run_first = day
+        length = (day - run_first).days + 1
+        if length >= best[0]:
+            best = (length, run_first, day)
+        prev = day
+    return best
+
+
+def records(
+    sessions: Iterable[Session], today: date, tz: Optional[tzinfo] = None
+) -> Record:
+    """Longest streak and best Monday-to-Sunday week across the whole log.
+
+    Days after ``today`` are ignored. The current week counts with the time
+    logged so far; ties go to the most recent week.
+    """
+    by_day = {d: m for d, m in minutes_by_day(sessions, tz).items() if d <= today}
+    active = [d for d, m in by_day.items() if m > 0]
+    length, first, last = longest_streak(active)
+    current_run = current_streak(active, today)
+    streak_current = (
+        length > 0 and current_run == length and last is not None and last >= today - timedelta(days=1)
+    )
+    weeks: dict[date, float] = defaultdict(float)
+    for d, m in by_day.items():
+        weeks[week_start(d)] += m
+    week_first: Optional[date] = None
+    week_minutes = 0.0
+    for monday in sorted(weeks):
+        if weeks[monday] > 0 and weeks[monday] >= week_minutes:
+            week_first, week_minutes = monday, weeks[monday]
+    return Record(
+        streak_days=length,
+        streak_first=first,
+        streak_last=last,
+        streak_current=streak_current,
+        week_minutes=week_minutes,
+        week_first=week_first,
+        week_current=week_first is not None and week_first == week_start(today),
+    )

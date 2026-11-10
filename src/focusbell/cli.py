@@ -26,7 +26,7 @@ from .render import (
     table,
     use_color,
 )
-from .stats import GoalProgress, by_label, compute_stats, goal_progress, to_local
+from .stats import GoalProgress, by_label, compute_stats, goal_progress, records, to_local
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -380,11 +380,32 @@ def cmd_stats(ctx: _Ctx, args: argparse.Namespace) -> int:
         labels = "-"
     ctx.out(f"Top labels  {labels}")
     ctx.out(f"Streak      {st.streak} day(s)")
+    for line in _record_lines(records(sessions, today, ctx.tz)):
+        ctx.out(line)
     goal = ctx.load_config()["weekly_goal"]
     if goal:
         progress = goal_progress(sessions, goal, today, ctx.tz)
         ctx.out(_goal_line(progress, unicode, paint))
     return EXIT_OK
+
+
+def _record_lines(rec) -> list[str]:
+    """The all-time `Best streak` and `Best week` rows of `stats`."""
+    if rec.streak_first is None:
+        streak = "0 day(s)"
+    else:
+        span = (str(rec.streak_first) if rec.streak_days == 1
+                else f"{rec.streak_first} to {rec.streak_last}")
+        streak = f"{rec.streak_days} day(s), {span}"
+        if rec.streak_current:
+            streak += " (current)"
+    if rec.week_first is None:
+        week = "-"
+    else:
+        week = f"{fmt_minutes(rec.week_minutes)}, week of {rec.week_first}"
+        if rec.week_current:
+            week += " (this week)"
+    return [f"Best streak {streak}", f"Best week   {week}"]
 
 
 GOAL_BAR_WIDTH = 20

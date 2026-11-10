@@ -17,6 +17,7 @@ DEFAULTS: dict[str, Any] = {
     "notify": False,
     "color": "auto",
     "todo_file": "",  # path to a todo.txt for `start --task N`; empty = not set
+    "tally": False,  # bump a pomodoros:N tag on the --task line per completed block
 }
 
 # key -> (kind, minimum, maximum)
@@ -65,7 +66,7 @@ def validate(key: str, value: Any) -> Any:
         if not low <= number <= high:
             raise ConfigError(f"{key} must be between {_num(low)} and {_num(high)}, got {value}")
         return int(number) if kind == "int" else _num(number)
-    if key in ("bell", "notify"):
+    if key in ("bell", "notify", "tally"):
         if isinstance(value, bool):
             return value
         text = str(value).strip().lower()

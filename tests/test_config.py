@@ -91,4 +91,5 @@ def test_save_rejects_invalid_and_leaves_file_alone(tmp_path):
 
 
 def test_keys_lists_all_settings():
-    assert config.keys() == ["work", "short", "long", "cycles", "bell", "notify", "color", "todo_file"]
+    assert config.keys() == ["work", "short", "long", "cycles", "bell", "notify", "color", "todo_file",
+                             "tally"]

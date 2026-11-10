@@ -32,7 +32,7 @@ Estimates are rough working hours for one person.
 - [x] Press `s` to skip the rest of a break (paused or not); ignored during
       work, no bell or notification for a skipped break, counted in the summary
 
-## v0.4: todo.txt integration (about 3 h)
+## v0.4: todo.txt integration (about 3 h, done)
 
 - [x] `--task N` picks the label from line N of a todo.txt file (priority,
       creation date and `key:value` tags stripped; done/empty lines refused)
@@ -40,7 +40,8 @@ Estimates are rough working hours for one person.
 - [x] `focusbell stats --by task`: focus time, completed blocks, share and
       last day per label, numbered from todo.txt (done tasks as `x3`), plus
       open tasks with no focus time
-- [ ] Optionally append a `pomodoros:N` tag to the task when a block completes
+- [x] Optionally append a `pomodoros:N` tag to the task when a block completes
+      (`--tally` / `tally` config key; atomic, byte-preserving write-back)
 
 ## v0.5: weekly goals (about 3 h)
 

@@ -130,6 +130,10 @@ def build_parser() -> argparse.ArgumentParser:
                       help="use task N (line N) of your todo.txt as the label")
     p.add_argument("--todo-file", metavar="PATH",
                    help="todo.txt to read --task from (default: the todo_file config key)")
+    p.add_argument("--tally", action=argparse.BooleanOptionalAction, default=None,
+                   help="with --task, add or bump a pomodoros:N tag on that todo.txt "
+                        "line after each completed work block (default: the tally "
+                        "config key, off)")
     p.add_argument("--no-bell", action="store_true", help="do not ring the terminal bell")
     p.add_argument("--notify", action=argparse.BooleanOptionalAction, default=None,
                    help="show a desktop notification at each transition "
@@ -196,14 +200,18 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
     )
     label = (args.label or "").strip() or None
     task_line = None
+    task: Optional[todo.TodoTask] = None
+    todo_path: Optional[Path] = None
+    want_tally = cfg["tally"] if args.tally is None else args.tally
     if args.task is not None:
         source = (args.todo_file or "").strip() or cfg["todo_file"]
         if not source:
             ctx.error("--task needs a todo.txt: pass --todo-file PATH or run "
                       "`focusbell config set todo_file PATH`")
             return EXIT_USAGE
+        todo_path = Path(source).expanduser()
         try:
-            task = todo.read_task(Path(source).expanduser(), args.task)
+            task = todo.read_task(todo_path, args.task)
         except todo.TodoError as exc:
             ctx.error(str(exc))
             return EXIT_USAGE
@@ -211,6 +219,9 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
         task_line = f"Task {task.number}: {task.raw.strip()}"
     elif args.todo_file:
         ctx.warn("--todo-file has no effect without --task")
+    if args.tally and task is None:
+        ctx.warn("--tally has no effect without --task")
+    tally = {"task": task, "added": 0, "count": None, "error": None}
     painter = ctx.painter(args, cfg)
     path = log_path(ctx.environ)
 
@@ -219,6 +230,15 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
             append_record(path, record)
         except OSError as exc:
             ctx.warn(f"could not write session log {path}: {exc}")
+        if (want_tally and tally["task"] is not None and tally["error"] is None
+                and record["status"] == timer.COMPLETED):
+            # Written after every block so a later Ctrl+C keeps the count.
+            # Problems are reported once, after the timer, not mid-countdown.
+            try:
+                tally["task"], tally["count"] = todo.bump_tally(todo_path, tally["task"])
+                tally["added"] += 1
+            except todo.TodoError as exc:
+                tally["error"] = str(exc)
 
     want_notify = cfg["notify"] if args.notify is None else args.notify
     notifier = ctx.notifier() if want_notify else None
@@ -267,9 +287,14 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
     if result.interrupted:
         partial = any(r["status"] == timer.INTERRUPTED for r in result.records)
         ctx.out(summary + (", 1 interrupted." if partial else ".") + pauses + " Stopped.")
-        return EXIT_INTERRUPTED
-    ctx.out(summary + "." + pauses)
-    return EXIT_OK
+    else:
+        ctx.out(summary + "." + pauses)
+    if tally["added"]:
+        ctx.out(f"Task {tally['task'].number}: {todo.TALLY_KEY}:{tally['count']} "
+                f"(+{tally['added']}) in {todo_path}")
+    if tally["error"]:
+        ctx.warn(tally["error"])
+    return EXIT_INTERRUPTED if result.interrupted else EXIT_OK
 
 
 def _load_sessions(ctx: _Ctx, since: Optional[date]) -> list[Session]:

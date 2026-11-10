@@ -28,7 +28,8 @@ That puts a `focusbell` command on your PATH. `python -m focusbell` works too.
 
 ```sh
 focusbell start [--work 25] [--short 5] [--long 15] [--cycles 4] [--sets 1]
-                [--label TEXT | --task N] [--todo-file PATH] [--no-bell]
+                [--label TEXT | --task N] [--todo-file PATH] [--tally | --no-tally]
+                [--no-bell]
                 [--notify | --no-notify] [--seconds] [--color auto|always|never]
 ```
 
@@ -67,7 +68,7 @@ it as the label, numbered the same way `todo.sh` numbers tasks. The priority,
 creation date and `key:value` tags such as `due:2026-11-20` are dropped so the
 label stays stable as those change; `+project` and `@context` words are kept.
 Completed (`x ...`) and empty lines are refused with exit status 2 before the
-timer starts. The todo file is only read, never modified.
+timer starts. The todo file is only read, unless you ask for a tally (below).
 
 Point focusbell at the file once with `focusbell config set todo_file PATH`
 (stored as an absolute path, `~` allowed) or per run with `--todo-file PATH`,
@@ -98,6 +99,69 @@ The logged record is the usual one, with the cleaned text as its label:
 
 ```json
 {"start": "2026-11-10T03:13:13+00:00", "end": "2026-11-10T03:13:16+00:00", "minutes": 0.05, "planned_minutes": 0.05, "label": "Write chapter 2 +thesis @desk", "status": "completed"}
+```
+
+#### Counting pomodoros on the task
+
+With `--tally` (or `focusbell config set tally true`; `--no-tally` turns it
+off for one run), each completed work block adds one to a `pomodoros:N` tag
+on the `--task` line, appending `pomodoros:1` if the line has none. Only that
+tag changes: every other line, tag, line ending (LF or CRLF), a UTF-8 BOM and
+a missing final newline are kept byte for byte, and the file is replaced
+atomically through a temp file in the same folder, so an editor or sync tool
+never sees half a file. The count is written after each block, so a block
+you stop with Ctrl+C is not counted but the ones before it are. The label
+ignores `key:value` tags, so it, the session log and `stats --by task` stay
+the same as the count grows.
+
+If the task line changed while the timer ran, focusbell looks for the exact
+original line elsewhere in the file (for example after a new task was added
+above it); if it is gone or appears more than once, the file is left alone
+and one warning is printed after the timer. A `pomodoros:` tag that is not a
+whole number is also left alone with a warning.
+
+Real output with a todo.txt whose second task already has a counter:
+
+```text
+$ cat todo.txt
+(A) 2026-11-01 Write chapter 2 +thesis @desk due:2026-11-20
+Review PR 42 +focusbell pomodoros:2
+x 2026-11-05 File expenses
+$ focusbell start --seconds --work 3 --short 2 --long 2 --cycles 2 --task 2 --todo-file todo.txt --tally --no-bell
+focusbell: 2 x 3s work, 2s short breaks, 2s long break after every 2. p to pause, s to skip a break, Ctrl+C to stop.
+Task 2: Review PR 42 +focusbell pomodoros:2
+Work 1/2: 00:03 left  [Review PR 42 +focusbell]
+Work block 1 done. Short break next.
+Short break: 00:02 left  [Review PR 42 +focusbell]
+Short break over. Back to work.
+Work 2/2: 00:03 left  [Review PR 42 +focusbell]
+Work block 2 done. Long break next.
+Long break: 00:02 left  [Review PR 42 +focusbell]
+All done. Nice work.
+Focused 6s: 2 of 2 work block(s) completed.
+Task 2: pomodoros:4 (+2) in todo.txt
+$ focusbell start --seconds --work 3 --short 2 --long 2 --cycles 1 --task 1 --todo-file todo.txt --tally --no-bell
+focusbell: 1 x 3s work, 2s short breaks, 2s long break after every 1. p to pause, s to skip a break, Ctrl+C to stop.
+Task 1: (A) 2026-11-01 Write chapter 2 +thesis @desk due:2026-11-20
+Work 1/1: 00:03 left  [Write chapter 2 +thesis @desk]
+Work block 1 done. Long break next.
+Long break: 00:02 left  [Write chapter 2 +thesis @desk]
+All done. Nice work.
+Focused 3s: 1 of 1 work block(s) completed.
+Task 1: pomodoros:1 (+1) in todo.txt
+$ cat todo.txt
+(A) 2026-11-01 Write chapter 2 +thesis @desk due:2026-11-20 pomodoros:1
+Review PR 42 +focusbell pomodoros:4
+x 2026-11-05 File expenses
+$ focusbell stats --by task --todo-file todo.txt --days 1
+Focus time by task, last 1 day(s) (2026-11-09 to 2026-11-09)
+
+#  Task                           Completed  Focus  Share  Last
+-  -----------------------------  ---------  -----  -----  ----------
+2  Review PR 42 +focusbell              2/2     0m    67%  2026-11-09
+1  Write chapter 2 +thesis @desk        1/1     0m    33%  2026-11-09
+
+Total       0m in 3 session(s) across 2 label(s)
 ```
 
 ### Desktop notifications
@@ -387,6 +451,7 @@ bell = true
 notify = true
 color = "auto"
 todo_file = ""
+tally = false
 ```
 
 | Key | Allowed values | Default |
@@ -399,6 +464,7 @@ todo_file = ""
 | `notify` | true/false, same spellings as `bell` | false |
 | `color` | auto, always, never | auto |
 | `todo_file` | path to a todo.txt for `--task` (empty = unset) | empty |
+| `tally` | true/false: bump `pomodoros:N` on the `--task` line per completed block | false |
 
 Command-line flags always win over config values.
 

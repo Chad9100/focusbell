@@ -104,3 +104,41 @@ def compute_stats(
         top_labels=top_labels,
         streak=current_streak(active, today),
     )
+
+
+@dataclass
+class TaskStat:
+    label: Optional[str]  # None groups the sessions logged without a label
+    sessions: int
+    completed: int
+    minutes: float
+    last_day: date
+
+
+def by_label(
+    sessions: Iterable[Session],
+    first: date,
+    last: date,
+    tz: Optional[tzinfo] = None,
+) -> list[TaskStat]:
+    """Sessions that started between ``first`` and ``last`` (local days), per label.
+
+    Sorted by focus minutes (most first), then label; the unlabelled group,
+    if any, always comes last.
+    """
+    groups: dict[Optional[str], TaskStat] = {}
+    for s in sessions:
+        day = to_local(s.start, tz).date()
+        if not first <= day <= last:
+            continue
+        st = groups.get(s.label)
+        if st is None:
+            st = groups[s.label] = TaskStat(s.label, 0, 0, 0.0, day)
+        st.sessions += 1
+        st.completed += s.status == "completed"
+        st.minutes += s.minutes
+        st.last_day = max(st.last_day, day)
+    return sorted(
+        groups.values(),
+        key=lambda t: (t.label is None, -t.minutes, t.label or ""),
+    )

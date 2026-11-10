@@ -8,7 +8,7 @@ import json
 import os
 import sys
 import time
-from datetime import date, datetime, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Callable, ContextManager, Mapping, Optional, Sequence, TextIO
 
@@ -25,7 +25,7 @@ from .render import (
     table,
     use_color,
 )
-from .stats import compute_stats, to_local
+from .stats import by_label, compute_stats, to_local
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -144,6 +144,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("stats", parents=[color], help="focus minutes per day, totals, streak")
     p.add_argument("--days", type=_positive_int, default=7,
                    help="how many days to chart, ending today (default 7, max 366)")
+    p.add_argument("--by", choices=("day", "task"), default="day",
+                   help="day: daily chart and totals (default); task: a table of "
+                        "focus time per label, numbered from your todo.txt")
+    p.add_argument("--todo-file", metavar="PATH",
+                   help="todo.txt to number tasks from with --by task "
+                        "(default: the todo_file config key)")
 
     p = sub.add_parser("config", parents=[color], help="get or set default settings")
     csub = p.add_subparsers(dest="action", metavar="ACTION")
@@ -313,6 +319,10 @@ def cmd_stats(ctx: _Ctx, args: argparse.Namespace) -> int:
     if args.days > 366:
         ctx.error(f"--days must be between 1 and 366, got {args.days}")
         return EXIT_USAGE
+    if args.by == "task":
+        return _stats_by_task(ctx, args)
+    if args.todo_file:
+        ctx.warn("--todo-file has no effect without --by task")
     sessions = read_sessions(log_path(ctx.environ), ctx.warn)
     today = to_local(ctx.now(), ctx.tz).date()
     st = compute_stats(sessions, args.days, today, ctx.tz)
@@ -338,6 +348,77 @@ def cmd_stats(ctx: _Ctx, args: argparse.Namespace) -> int:
         labels = "-"
     ctx.out(f"Top labels  {labels}")
     ctx.out(f"Streak      {st.streak} day(s)")
+    return EXIT_OK
+
+
+TASK_WIDTH = 48
+
+
+def _shorten(text: str, width: int = TASK_WIDTH) -> str:
+    return text if len(text) <= width else text[: width - 3].rstrip() + "..."
+
+
+def _stats_by_task(ctx: _Ctx, args: argparse.Namespace) -> int:
+    # Look up todo.txt numbers when a file is known. An explicit --todo-file
+    # that cannot be read is an error; a stale config key only warns.
+    tasks: Optional[list[todo.TodoTask]] = None
+    source = (args.todo_file or "").strip()
+    explicit = bool(source)
+    if not explicit:
+        source = ctx.load_config()["todo_file"]
+    if source:
+        try:
+            tasks = todo.read_tasks(Path(source).expanduser())
+        except todo.TodoError as exc:
+            if explicit:
+                ctx.error(str(exc))
+                return EXIT_USAGE
+            ctx.warn(f"{exc}; showing labels without task numbers")
+    numbers: dict[str, todo.TodoTask] = {}
+    for task in tasks or []:
+        known = numbers.get(task.label)
+        if known is None or (known.done and not task.done):
+            numbers[task.label] = task  # first open line wins over a done one
+
+    sessions = read_sessions(log_path(ctx.environ), ctx.warn)
+    today = to_local(ctx.now(), ctx.tz).date()
+    first = today - timedelta(days=args.days - 1)
+    groups = by_label(sessions, first, today, ctx.tz)
+    paint = ctx.painter(args)
+    ctx.out(paint("head", f"Focus time by task, last {args.days} day(s) ({first} to {today})"))
+    ctx.out()
+    if not groups:
+        ctx.out("No sessions in this period.")
+    else:
+        total = sum(g.minutes for g in groups)
+        rows = []
+        for g in groups:
+            task = numbers.get(g.label) if g.label else None
+            number = "-" if task is None else ("x" if task.done else "") + str(task.number)
+            share = f"{g.minutes / total:.0%}" if total > 0 else "-"
+            row = [_shorten(g.label or "(no label)"), f"{g.completed}/{g.sessions}",
+                   fmt_minutes(g.minutes), share, g.last_day.isoformat()]
+            rows.append([number] + row if tasks is not None else row)
+        headers = ["Task", "Completed", "Focus", "Share", "Last"]
+        right = (1, 2, 3)
+        if tasks is not None:
+            headers = ["#"] + headers
+            right = tuple(i + 1 for i in right)
+        lines = table(headers, rows, right=right)
+        ctx.out(paint("head", lines[0]))
+        for line in lines[1:]:
+            ctx.out(line)
+        ctx.out()
+        sessions_n = sum(g.sessions for g in groups)
+        ctx.out(f"Total       {fmt_minutes(total)} in {sessions_n} session(s) "
+                f"across {len(groups)} label(s)")
+    if tasks is not None:
+        worked = {g.label for g in groups}
+        idle = [t for t in tasks if not t.done and t.label not in worked
+                and numbers[t.label] is t]
+        if idle:
+            listed = ", ".join(str(t.number) for t in idle)
+            ctx.out(f"No focus time yet on open task(s) {listed}")
     return EXIT_OK
 
 

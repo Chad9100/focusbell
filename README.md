@@ -263,6 +263,67 @@ Sun 11-08  ######################........   1h 15m
 Mon 11-09  ##################............   1h 02m
 ```
 
+### Stats by task
+
+`focusbell stats --by task` swaps the daily chart for a table of focus time
+per label over the same `--days` window: completed/logged blocks, focus
+minutes, share of the total and the last day worked. Sessions are counted on
+the local day they started; unlabelled sessions are grouped as `(no label)`
+at the bottom.
+
+When a todo.txt is known (`--todo-file PATH`, or the `todo_file` config key),
+each row whose label matches a task gets that task's line number in a `#`
+column, so you can go straight back to it with `start --task N`. Done tasks
+match too and are shown as `x3`; if the same task appears both open and done,
+the open line wins. Open tasks with no focus time in the window are listed
+underneath. Labels that are not in the file show `-`. An explicit
+`--todo-file` that cannot be read is an error (exit 2); a stale `todo_file`
+config key only warns and the table is shown without numbers.
+
+Real output from a temporary `FOCUSBELL_HOME` holding a made-up week of
+sessions, plus one real `--seconds` block started with `--task 5` (which is
+why "Plan next sprint" shows 0m), run on 2026-11-09:
+
+```text
+$ cat todo.txt
+(A) 2026-11-01 Write chapter 2 +thesis @desk due:2026-11-20
+Reply to Sam about the budget @email
+x 2026-11-06 2026-11-02 File expenses
+(B) Review PR 42 +focusbell
+Plan next sprint
+$ focusbell stats --by task --todo-file todo.txt
+Focus time by task, last 7 day(s) (2026-11-03 to 2026-11-09)
+
+#   Task                           Completed   Focus  Share  Last
+--  -----------------------------  ---------  ------  -----  ----------
+1   Write chapter 2 +thesis @desk        3/4  1h 27m    42%  2026-11-07
+4   Review PR 42 +focusbell              2/2     50m    24%  2026-11-08
+x3  File expenses                        1/1     25m    12%  2026-11-04
+-   standup notes                        1/1     25m    12%  2026-11-09
+5   Plan next sprint                     1/1      0m     0%  2026-11-09
+-   (no label)                           0/1     18m     9%  2026-11-09
+
+Total       3h 25m in 10 session(s) across 6 label(s)
+No focus time yet on open task(s) 2
+```
+
+Without a todo file the `#` column is left out:
+
+```text
+$ focusbell stats --by task --days 1
+Focus time by task, last 1 day(s) (2026-11-09 to 2026-11-09)
+
+Task              Completed  Focus  Share  Last
+----------------  ---------  -----  -----  ----------
+standup notes           1/1    25m    58%  2026-11-09
+Plan next sprint        1/1     0m     0%  2026-11-09
+(no label)              0/1    18m    42%  2026-11-09
+
+Total       43m in 3 session(s) across 3 label(s)
+```
+
+Labels longer than 48 characters are shortened with `...`.
+
 ### Session log
 
 ```text

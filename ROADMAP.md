@@ -37,7 +37,9 @@ Estimates are rough working hours for one person.
 - [x] `--task N` picks the label from line N of a todo.txt file (priority,
       creation date and `key:value` tags stripped; done/empty lines refused)
 - [x] `todo_file` config key and a `--todo-file PATH` override
-- [ ] `focusbell stats --by task`
+- [x] `focusbell stats --by task`: focus time, completed blocks, share and
+      last day per label, numbered from todo.txt (done tasks as `x3`), plus
+      open tasks with no focus time
 - [ ] Optionally append a `pomodoros:N` tag to the task when a block completes
 
 ## v0.5: weekly goals (about 3 h)

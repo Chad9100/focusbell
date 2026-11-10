@@ -28,8 +28,8 @@ That puts a `focusbell` command on your PATH. `python -m focusbell` works too.
 
 ```sh
 focusbell start [--work 25] [--short 5] [--long 15] [--cycles 4] [--sets 1]
-                [--label TEXT] [--no-bell] [--notify | --no-notify] [--seconds]
-                [--color auto|always|never]
+                [--label TEXT | --task N] [--todo-file PATH] [--no-bell]
+                [--notify | --no-notify] [--seconds] [--color auto|always|never]
 ```
 
 Work blocks are separated by short breaks, and every `--cycles`-th block is
@@ -59,6 +59,46 @@ Focused 6s: 2 of 2 work block(s) completed.
 
 (The four bell characters, one per transition, are invisible here; `--no-bell`
 turns them off.)
+
+### Labels from todo.txt
+
+If you keep a [todo.txt](http://todotxt.org) list, `--task N` uses line N of
+it as the label, numbered the same way `todo.sh` numbers tasks. The priority,
+creation date and `key:value` tags such as `due:2026-11-20` are dropped so the
+label stays stable as those change; `+project` and `@context` words are kept.
+Completed (`x ...`) and empty lines are refused with exit status 2 before the
+timer starts. The todo file is only read, never modified.
+
+Point focusbell at the file once with `focusbell config set todo_file PATH`
+(stored as an absolute path, `~` allowed) or per run with `--todo-file PATH`,
+which wins over the config key. `--task` and `--label` cannot be combined.
+
+Real output with a three-line todo.txt whose third task is done:
+
+```text
+$ cat todo.txt
+(A) 2026-11-01 Write chapter 2 +thesis @desk due:2026-11-20
+Reply to Sam about the budget @email
+x 2026-11-05 File expenses
+$ focusbell start --seconds --work 3 --short 2 --long 2 --cycles 1 --task 1 --todo-file todo.txt --no-bell
+focusbell: 1 x 3s work, 2s short breaks, 2s long break after every 1. p to pause, s to skip a break, Ctrl+C to stop.
+Task 1: (A) 2026-11-01 Write chapter 2 +thesis @desk due:2026-11-20
+Work 1/1: 00:03 left  [Write chapter 2 +thesis @desk]
+Work block 1 done. Long break next.
+Long break: 00:02 left  [Write chapter 2 +thesis @desk]
+All done. Nice work.
+Focused 3s: 1 of 1 work block(s) completed.
+$ focusbell start --task 3 --todo-file todo.txt
+focusbell: error: task 3 is already done: x 2026-11-05 File expenses
+$ focusbell start --task 1
+focusbell: error: --task needs a todo.txt: pass --todo-file PATH or run `focusbell config set todo_file PATH`
+```
+
+The logged record is the usual one, with the cleaned text as its label:
+
+```json
+{"start": "2026-11-10T03:13:13+00:00", "end": "2026-11-10T03:13:16+00:00", "minutes": 0.05, "planned_minutes": 0.05, "label": "Write chapter 2 +thesis @desk", "status": "completed"}
+```
 
 ### Desktop notifications
 
@@ -285,6 +325,7 @@ cycles = 4
 bell = true
 notify = true
 color = "auto"
+todo_file = ""
 ```
 
 | Key | Allowed values | Default |
@@ -296,6 +337,7 @@ color = "auto"
 | `bell` | true/false (also yes/no, on/off, 1/0) | true |
 | `notify` | true/false, same spellings as `bell` | false |
 | `color` | auto, always, never | auto |
+| `todo_file` | path to a todo.txt for `--task` (empty = unset) | empty |
 
 Command-line flags always win over config values.
 

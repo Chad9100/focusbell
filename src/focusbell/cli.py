@@ -12,7 +12,7 @@ from datetime import date, datetime, tzinfo
 from pathlib import Path
 from typing import Callable, ContextManager, Mapping, Optional, Sequence, TextIO
 
-from . import __version__, config, keys, notify, timer
+from . import __version__, config, keys, notify, timer, todo
 from .log import Session, append_record, data_dir, log_path, read_sessions
 from .render import (
     BLOCK_EMPTY,
@@ -124,7 +124,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--cycles", help="work blocks before a long break (default 4)")
     p.add_argument("--sets", type=_positive_int, default=1,
                    help="how many rounds of CYCLES work blocks to run (default 1)")
-    p.add_argument("--label", help="what you are working on, stored with each session")
+    what = p.add_mutually_exclusive_group()
+    what.add_argument("--label", help="what you are working on, stored with each session")
+    what.add_argument("--task", type=_positive_int, metavar="N",
+                      help="use task N (line N) of your todo.txt as the label")
+    p.add_argument("--todo-file", metavar="PATH",
+                   help="todo.txt to read --task from (default: the todo_file config key)")
     p.add_argument("--no-bell", action="store_true", help="do not ring the terminal bell")
     p.add_argument("--notify", action=argparse.BooleanOptionalAction, default=None,
                    help="show a desktop notification at each transition "
@@ -184,6 +189,22 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
         values["cycles"], args.sets,
     )
     label = (args.label or "").strip() or None
+    task_line = None
+    if args.task is not None:
+        source = (args.todo_file or "").strip() or cfg["todo_file"]
+        if not source:
+            ctx.error("--task needs a todo.txt: pass --todo-file PATH or run "
+                      "`focusbell config set todo_file PATH`")
+            return EXIT_USAGE
+        try:
+            task = todo.read_task(Path(source).expanduser(), args.task)
+        except todo.TodoError as exc:
+            ctx.error(str(exc))
+            return EXIT_USAGE
+        label = task.label
+        task_line = f"Task {task.number}: {task.raw.strip()}"
+    elif args.todo_file:
+        ctx.warn("--todo-file has no effect without --task")
     painter = ctx.painter(args, cfg)
     path = log_path(ctx.environ)
 
@@ -210,6 +231,8 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
             f"{_fmt_span(values['long'] * unit, args.seconds)} long break"
             f" after every {values['cycles']}. {controls}"
         )
+        if task_line:
+            ctx.out(task_line)
         result = timer.run(
             schedule,
             clock=ctx.clock,
@@ -321,6 +344,9 @@ def cmd_stats(ctx: _Ctx, args: argparse.Namespace) -> int:
 def cmd_config(ctx: _Ctx, args: argparse.Namespace) -> int:
     path = ctx.config_path
     if args.action == "set":
+        if args.key == "todo_file" and args.value.strip():
+            # Store an absolute path so --task works from any directory.
+            args.value = str(Path(args.value.strip()).expanduser().absolute())
         try:
             value = config.save_value(path, args.key, args.value)
         except config.ConfigError as exc:
@@ -337,7 +363,8 @@ def cmd_config(ctx: _Ctx, args: argparse.Namespace) -> int:
         if key not in cfg:
             ctx.error(f"unknown key {key!r} (known: {', '.join(config.keys())})")
             return EXIT_USAGE
-        ctx.out(json.dumps(cfg[key]).strip('"'))
+        value = cfg[key]
+        ctx.out(value if isinstance(value, str) else json.dumps(value))
         return EXIT_OK
     for k in config.keys():
         ctx.out(f"{k} = {json.dumps(cfg[k])}")

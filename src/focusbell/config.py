@@ -16,6 +16,7 @@ DEFAULTS: dict[str, Any] = {
     "bell": True,
     "notify": False,
     "color": "auto",
+    "todo_file": "",  # path to a todo.txt for `start --task N`; empty = not set
 }
 
 # key -> (kind, minimum, maximum)
@@ -77,6 +78,13 @@ def validate(key: str, value: Any) -> Any:
         text = str(value).strip().lower()
         if text not in COLOR_MODES:
             raise ConfigError(f"color must be one of {', '.join(COLOR_MODES)}, got {value!r}")
+        return text
+    if key == "todo_file":
+        if not isinstance(value, str):
+            raise ConfigError(f"todo_file must be a path, got {value!r}")
+        text = value.strip()
+        if any(ch in text for ch in "\r\n\0"):
+            raise ConfigError("todo_file must be a single-line path")
         return text
     raise ConfigError(f"unknown key {key!r}")  # pragma: no cover
 

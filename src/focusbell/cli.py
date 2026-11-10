@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Callable, ContextManager, Mapping, Optional, Sequence, TextIO
 
-from . import __version__, config, keys, notify, timer, todo
+from . import __version__, config, keys, notify, report, timer, todo
 from .log import Session, append_record, data_dir, log_path, read_sessions
 from .render import (
     BLOCK_EMPTY,
@@ -155,6 +155,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--todo-file", metavar="PATH",
                    help="todo.txt to number tasks from with --by task "
                         "(default: the todo_file config key)")
+
+    p = sub.add_parser("report", parents=[color], help="write a self-contained HTML report")
+    p.add_argument("--html", metavar="FILE", required=True,
+                   help="write the report to FILE ('-' for stdout)")
+    p.add_argument("--days", type=_positive_int, default=182,
+                   help="days to cover, ending today (default 182, at most 3660)")
 
     p = sub.add_parser("config", parents=[color], help="get or set default settings")
     csub = p.add_subparsers(dest="action", metavar="ACTION")
@@ -560,10 +566,32 @@ def cmd_export(ctx: _Ctx, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_report(ctx: _Ctx, args: argparse.Namespace) -> int:
+    if args.days > 3660:
+        ctx.error(f"--days must be between 1 and 3660, got {args.days}")
+        return EXIT_USAGE
+    sessions = read_sessions(log_path(ctx.environ), ctx.warn)
+    now = to_local(ctx.now(), ctx.tz)
+    page = report.render_html(sessions, now.date(), args.days, ctx.tz,
+                              generated=now.strftime("%Y-%m-%d %H:%M"))
+    if args.html == "-":
+        ctx.stdout.write(page)
+        return EXIT_OK
+    try:
+        with open(args.html, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(page)
+    except OSError as exc:
+        ctx.error(f"could not write {args.html}: {exc}")
+        return EXIT_ERROR
+    ctx.stderr.write(f"Wrote report for {args.days} day(s) to {args.html}\n")
+    return EXIT_OK
+
+
 COMMANDS = {
     "start": cmd_start,
     "log": cmd_log,
     "stats": cmd_stats,
+    "report": cmd_report,
     "config": cmd_config,
     "export": cmd_export,
 }

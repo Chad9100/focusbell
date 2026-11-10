@@ -49,11 +49,11 @@ Estimates are rough working hours for one person.
 - [x] Goal progress bar in `stats` and a one-line summary after each session
 - [x] Longest streak and best week in `stats` (all-time, whatever `--days`)
 
-## v0.6: HTML report (about 3 h)
+## v0.6: HTML report (about 3 h, done)
 
-- [ ] `focusbell report --html out.html`: self-contained page with a calendar
+- [x] `focusbell report --html out.html`: self-contained page with a calendar
       heat map, per-label breakdown and the session table
-- [ ] No external assets, works offline
+- [x] No external assets, works offline
 
 ## v0.7: sound files (about 2 h)
 

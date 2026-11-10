@@ -512,6 +512,26 @@ $ focusbell export --format json
 
 `--output FILE` writes to a file instead of stdout; `--since` filters as above.
 
+### HTML report
+
+```text
+$ focusbell report --html focus.html
+Wrote report for 182 day(s) to focus.html
+```
+
+Writes one self-contained page (inline CSS, no scripts, fonts or links, so it
+works offline and can be mailed as a single file) with:
+
+- totals for the period: focus time, sessions, completed blocks, active days
+- a calendar heat map, one column per Monday-to-Sunday week, shaded in four
+  steps relative to the busiest day; hover a cell for its date and minutes
+- a per-label breakdown: sessions, completed, focus time, share, last day
+- the session table, newest first, with interrupted blocks highlighted
+
+`--days N` sets the period (ending today, default 182, at most 3660) and
+`--html -` prints the page to stdout. Days are local calendar days, split at
+midnight like `stats`. The page follows the system light/dark setting.
+
 ### Config
 
 Defaults live in `config.json` next to the log. Values are validated before

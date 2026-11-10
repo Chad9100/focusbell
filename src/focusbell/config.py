@@ -19,6 +19,7 @@ DEFAULTS: dict[str, Any] = {
     "todo_file": "",  # path to a todo.txt for `start --task N`; empty = not set
     "tally": False,  # bump a pomodoros:N tag on the --task line per completed block
     "weekly_goal": 0,  # focus minutes per Monday-to-Sunday week; 0 = no goal
+    "sound": "",  # WAV file played instead of the terminal bell; empty = bell
 }
 
 # key -> (kind, minimum, maximum)
@@ -82,12 +83,12 @@ def validate(key: str, value: Any) -> Any:
         if text not in COLOR_MODES:
             raise ConfigError(f"color must be one of {', '.join(COLOR_MODES)}, got {value!r}")
         return text
-    if key == "todo_file":
+    if key in ("todo_file", "sound"):
         if not isinstance(value, str):
-            raise ConfigError(f"todo_file must be a path, got {value!r}")
+            raise ConfigError(f"{key} must be a path, got {value!r}")
         text = value.strip()
         if any(ch in text for ch in "\r\n\0"):
-            raise ConfigError("todo_file must be a single-line path")
+            raise ConfigError(f"{key} must be a single-line path")
         return text
     raise ConfigError(f"unknown key {key!r}")  # pragma: no cover
 

@@ -55,10 +55,28 @@ Estimates are rough working hours for one person.
       heat map, per-label breakdown and the session table
 - [x] No external assets, works offline
 
-## v0.7: sound files (about 2 h)
+## v0.7: sound files (about 2 h, done)
 
-- [ ] `--sound PATH` plays a WAV at transitions (`winsound` on Windows,
-      `aplay`/`afplay` elsewhere), falling back to the terminal bell
+- [x] `--sound PATH` plays a WAV at transitions (`winsound` on Windows,
+      `afplay` on macOS, `paplay`/`aplay` on Linux), falling back to the
+      terminal bell when no player works; `sound` config key, `--no-sound`
+- [x] WAV header checked before the timer starts; a missing configured file
+      only warns, so it never costs a session
+
+## v0.8: richer sounds and notes (about 5 h)
+
+- [ ] Separate sounds for "break starts" and "back to work"
+      (`--sound-break`, `--sound-work`, falling back to `--sound`) (about 1 h)
+- [ ] `focusbell note TEXT` attaches a note to the most recent session; notes
+      shown in `log`, exported to CSV/JSON and listed in the HTML report
+      (about 2 h)
+- [ ] `focusbell relabel` to fix the label of the last session (or one picked
+      by `--start`), rewriting the log atomically (about 2 h)
+
+## v0.9: calendar export (about 2 h)
+
+- [ ] `focusbell export --format ics`: one VEVENT per work block (label as the
+      summary, status in the description) for import into a calendar app
 
 ## v1.0: release (about 3 h)
 
@@ -66,4 +84,4 @@ Estimates are rough working hours for one person.
 - [ ] Stable log format documented with a version field and migration notes
 - [ ] Shell completion scripts; man-page style `--help` review
 
-**Total for v0.4 to v1.0: about 17 hours.**
+**Total for v0.4 to v1.0: about 24 hours.**

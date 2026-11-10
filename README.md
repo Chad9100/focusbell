@@ -29,7 +29,7 @@ That puts a `focusbell` command on your PATH. `python -m focusbell` works too.
 ```sh
 focusbell start [--work 25] [--short 5] [--long 15] [--cycles 4] [--sets 1]
                 [--label TEXT | --task N] [--todo-file PATH] [--tally | --no-tally]
-                [--no-bell]
+                [--no-bell] [--sound PATH | --no-sound]
                 [--notify | --no-notify] [--seconds] [--color auto|always|never]
 ```
 
@@ -183,6 +183,50 @@ not waited for, so it never delays the countdown. If the tool is missing or
 fails, focusbell carries on silently with the bell and terminal output.
 Turn it on permanently with `focusbell config set notify true`; `--no-notify`
 turns it off for one run.
+
+### Sound files
+
+`--sound PATH` plays a WAV file at every transition instead of the terminal
+bell, again with no extra Python packages:
+
+| Platform | Player |
+| --- | --- |
+| Windows | `winsound` (standard library) |
+| macOS | `afplay` |
+| Linux | `paplay` (PulseAudio/PipeWire), else `aplay` (ALSA) |
+
+The file is checked before the timer starts: a missing file or anything that
+is not a RIFF/WAVE file is refused with exit code 2. Sounds play in the
+background so the countdown never waits for them; on Windows the last one
+(after the final phase) plays to the end before focusbell exits. If no player
+is installed or playback fails, focusbell rings the terminal bell instead, so
+a transition is never silent by accident. Real output from this Windows PC
+(the WAV played; there are no bell characters in the output):
+
+```text
+$ focusbell start --seconds --work 2 --short 1 --long 1 --cycles 1 --label demo --sound ding.wav | cat
+focusbell: 1 x 2s work, 1s short breaks, 1s long break after every 1. p to pause, s to skip a break, Ctrl+C to stop.
+Work 1/1: 00:02 left  [demo]
+Work block 1 done. Long break next.
+Long break: 00:01 left  [demo]
+All done. Nice work.
+Focused 2s: 1 of 1 work block(s) completed.
+$ focusbell start --sound notes.wav
+focusbell: error: not a WAV file: notes.wav (only RIFF/WAVE files are supported)
+```
+
+Make it the default with `focusbell config set sound PATH` (an absolute path
+is safest, since a relative one is read from the current directory).
+`--no-sound` goes back to the bell for one run, and `--no-bell` silences both.
+A configured file that has gone missing does not block a session: focusbell
+warns and uses the bell:
+
+```text
+$ focusbell config set sound moved.wav
+sound = "moved.wav"
+$ focusbell start --seconds --work 1 --short 1 --long 1 --cycles 1
+focusbell: warning: sound file not found: moved.wav (from the sound config key); using the terminal bell
+```
 
 ### Pause and resume
 
@@ -557,6 +601,7 @@ color = "auto"
 todo_file = ""
 tally = false
 weekly_goal = 0
+sound = ""
 ```
 
 | Key | Allowed values | Default |
@@ -571,6 +616,7 @@ weekly_goal = 0
 | `todo_file` | path to a todo.txt for `--task` (empty = unset) | empty |
 | `tally` | true/false: bump `pomodoros:N` on the `--task` line per completed block | false |
 | `weekly_goal` | whole minutes 0 to 10080 of focus per week (0 = no goal) | 0 |
+| `sound` | path to a WAV played instead of the bell (empty = bell) | empty |
 
 Command-line flags always win over config values.
 
@@ -603,8 +649,8 @@ pytest -q
 
 The timer loop takes its `clock` and `sleep` functions as arguments, so the
 tests drive a fake clock and a full four-block Pomodoro runs in milliseconds.
-The desktop notifier is injected the same way, so tests never pop up real
-notifications.
+The desktop notifier and the sound player are injected the same way, so tests
+never pop up real notifications or play sounds.
 Tests point `FOCUSBELL_HOME` at a temporary directory and never touch your real
 log. CI runs the suite on Ubuntu and Windows with Python 3.10, 3.12 and 3.13.
 

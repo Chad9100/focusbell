@@ -125,6 +125,16 @@ def _phase_title(phase: Phase) -> str:
     return phase.name
 
 
+def _play(sound: Optional[Callable[[bool], bool]], last: bool) -> bool:
+    """True if ``sound`` played; False means ring the terminal bell instead."""
+    if sound is None:
+        return False
+    try:
+        return bool(sound(last))
+    except Exception:  # noqa: BLE001 - a broken player falls back to the bell
+        return False
+
+
 def run(
     schedule: list[Phase],
     *,
@@ -140,6 +150,7 @@ def run(
     paint: Optional[Callable[[str, str], str]] = None,
     notify: Optional[Callable[[str, str], None]] = None,
     keys: Optional[Callable[[], Optional[str]]] = None,
+    sound: Optional[Callable[[bool], bool]] = None,
 ) -> RunResult:
     """Run every phase of ``schedule``; return what happened.
 
@@ -150,6 +161,10 @@ def run(
 
     If ``notify`` is given it is called as ``notify(title, message)`` at every
     transition (a desktop notification); its errors are ignored.
+
+    If ``sound`` is given and ``bell`` is on, it is called as ``sound(last)``
+    instead of writing the terminal bell (``last`` is True for the final
+    transition). When it returns False or raises, the bell is written instead.
 
     If ``keys`` is given it is polled once per tick and must return the next
     pressed key or ``None`` without blocking. ``p`` pauses the current phase
@@ -252,9 +267,9 @@ def run(
                 result.focus_seconds += phase.seconds
                 emit(make_record(start, phase.seconds, phase.seconds, label, COMPLETED,
                                  paused_total, pauses))
-            if bell and not skipped:
-                out.write("\a")
             nxt = schedule[idx + 1] if idx + 1 < len(schedule) else None
+            if bell and not skipped and not _play(sound, nxt is None):
+                out.write("\a")
             message = _transition_message(phase, nxt, skipped)
             out.write(paint("note", message) + "\n")
             out.flush()

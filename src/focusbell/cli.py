@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Callable, ContextManager, Mapping, Optional, Sequence, TextIO
 
-from . import __version__, config, keys, notify, report, timer, todo
+from . import __version__, config, keys, notify, report, sound, timer, todo
 from .log import Session, append_record, data_dir, log_path, read_sessions
 from .render import (
     BLOCK_EMPTY,
@@ -48,6 +48,7 @@ class _Ctx:
         tz: Optional[tzinfo],
         notifier: Optional[Callable[[], Optional[notify.Notifier]]] = None,
         key_reader: Optional[Callable[[], ContextManager[Optional[keys.Poll]]]] = None,
+        player: Optional[Callable[[Path], Optional[sound.Player]]] = None,
     ):
         self.stdout = stdout
         self.stderr = stderr
@@ -58,6 +59,7 @@ class _Ctx:
         self.tz = tz
         self.notifier = notifier or (lambda: notify.system_notifier(environ=environ))
         self.key_reader = key_reader or keys.key_reader
+        self.player = player or sound.system_player
 
     def out(self, text: str = "") -> None:
         self.stdout.write(text + "\n")
@@ -135,7 +137,14 @@ def build_parser() -> argparse.ArgumentParser:
                    help="with --task, add or bump a pomodoros:N tag on that todo.txt "
                         "line after each completed work block (default: the tally "
                         "config key, off)")
-    p.add_argument("--no-bell", action="store_true", help="do not ring the terminal bell")
+    p.add_argument("--no-bell", action="store_true",
+                   help="no audible signal at all: neither the terminal bell nor --sound")
+    audio = p.add_mutually_exclusive_group()
+    audio.add_argument("--sound", metavar="PATH",
+                       help="play this WAV file at each transition instead of the terminal "
+                            "bell (default: the sound config key)")
+    audio.add_argument("--no-sound", action="store_true",
+                       help="ignore the sound config key for this run and use the bell")
     p.add_argument("--notify", action=argparse.BooleanOptionalAction, default=None,
                    help="show a desktop notification at each transition "
                         "(default: the notify config key, off)")
@@ -250,6 +259,27 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
     want_notify = cfg["notify"] if args.notify is None else args.notify
     notifier = ctx.notifier() if want_notify else None
 
+    bell = bool(cfg["bell"]) and not args.no_bell
+    player: Optional[sound.Player] = None
+    sound_source = "" if args.no_sound else ((args.sound or "").strip() or cfg["sound"])
+    if sound_source and not bell:
+        if args.sound:
+            ctx.warn("--sound has no effect with the bell turned off")
+    elif sound_source:
+        try:
+            wav = sound.check_wav(Path(sound_source).expanduser())
+        except sound.SoundError as exc:
+            if args.sound:  # asked for on this run: refuse rather than surprise
+                ctx.error(str(exc))
+                return EXIT_USAGE
+            # From the config: a moved file must not cost a focus session.
+            ctx.warn(f"{exc} (from the sound config key); using the terminal bell")
+        else:
+            player = ctx.player(wav)
+            if player is None:
+                ctx.warn(f"no WAV player found ({sound.player_name()}); "
+                         "using the terminal bell")
+
     blocks = values["cycles"] * args.sets
 
     def span(seconds: float) -> str:
@@ -272,7 +302,7 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
             sleep=ctx.sleep,
             out=ctx.stdout,
             label=label,
-            bell=bool(cfg["bell"]) and not args.no_bell,
+            bell=bell,
             tty=isatty(ctx.stdout),
             on_record=on_record,
             # Poll keys a few times a second so a pause or skip feels immediate.
@@ -281,6 +311,7 @@ def cmd_start(ctx: _Ctx, args: argparse.Namespace) -> int:
             paint=painter,
             notify=notifier,
             keys=poll,
+            sound=player,
         )
     summary = (
         f"Focused {span(result.focus_seconds)}: "
@@ -609,6 +640,7 @@ def main(
     tz: Optional[tzinfo] = None,
     notifier: Optional[Callable[[], Optional[notify.Notifier]]] = None,
     key_reader: Optional[Callable[[], ContextManager[Optional[keys.Poll]]]] = None,
+    player: Optional[Callable[[Path], Optional[sound.Player]]] = None,
 ) -> int:
     if stdout is None:
         stdout = sys.stdout
@@ -639,6 +671,7 @@ def main(
         tz=tz,
         notifier=notifier,
         key_reader=key_reader,
+        player=player,
     )
     try:
         return COMMANDS[args.command](ctx, args)

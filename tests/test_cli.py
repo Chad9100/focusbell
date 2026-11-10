@@ -306,6 +306,16 @@ def test_export_to_file(run, isolated_home, tmp_path):
     assert target.read_bytes().count(b"\n") == 6 and b"\r" not in target.read_bytes()
 
 
+def test_export_ics_to_file(run, isolated_home, tmp_path):
+    write_log(isolated_home, DEMO)
+    target = tmp_path / "out.ics"
+    code, _, err = run("export", "--format", "ics", "--since", "2026-11-09", "--output", str(target))
+    assert code == 0 and "Exported 2 session(s)" in err
+    data = target.read_bytes()
+    assert data.startswith(b"BEGIN:VCALENDAR\r\n") and data.count(b"BEGIN:VEVENT") == 2
+    assert b"\r\r" not in data
+
+
 def test_export_empty_log_json(run):
     assert json.loads(run("export", "--format", "json")[1]) == []
 

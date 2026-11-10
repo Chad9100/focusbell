@@ -586,6 +586,29 @@ $ focusbell export --format json
 
 `--output FILE` writes to a file instead of stdout; `--since` filters as above.
 
+```text
+$ focusbell export --format ics --output focus.ics
+Exported 2 session(s) to focus.ics
+$ focusbell export --format ics
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//focusbell//focus sessions//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:20261109T090000Z@focusbell
+DTSTAMP:20261109T092500Z
+DTSTART:20261109T090000Z
+DTEND:20261109T092500Z
+SUMMARY:Focus: thesis\, ch.2
+DESCRIPTION:Completed: 25 min focused of 25 planned
+END:VEVENT
+...
+```
+
+`--format ics` writes one event per session (interrupted ones included, marked
+in the description) with UTC times, CRLF line endings and escaped, folded text,
+ready to import into any calendar app.
+
 ### HTML report
 
 ```text

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Callable, ContextManager, Mapping, Optional, Sequence, TextIO
 
 from . import __version__, config, keys, notify, report, sound, timer, todo
+from .ics import to_ics
 from .log import Session, append_record, data_dir, log_path, read_sessions
 from .render import (
     BLOCK_EMPTY,
@@ -192,8 +193,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("key", help=", ".join(config.keys()))
     s.add_argument("value")
 
-    p = sub.add_parser("export", parents=[color], help="export sessions as CSV or JSON")
-    p.add_argument("--format", choices=("csv", "json"), default="csv")
+    p = sub.add_parser("export", parents=[color], help="export sessions as CSV, JSON or iCalendar")
+    p.add_argument("--format", choices=("csv", "json", "ics"), default="csv")
     p.add_argument("--output", "-o", help="write to this file instead of stdout")
     p.add_argument("--since", type=_since, help="only sessions on or after DATE (YYYY-MM-DD)")
     return parser
@@ -602,6 +603,9 @@ def cmd_config(ctx: _Ctx, args: argparse.Namespace) -> int:
 
 
 def _write_export(fh: TextIO, fmt: str, sessions: list[Session]) -> None:
+    if fmt == "ics":
+        fh.write(to_ics(sessions))
+        return
     records = [s.to_dict() for s in sessions]
     if fmt == "json":
         fh.write(json.dumps(records, indent=2, ensure_ascii=False) + "\n")
@@ -615,6 +619,13 @@ def _write_export(fh: TextIO, fmt: str, sessions: list[Session]) -> None:
 def cmd_export(ctx: _Ctx, args: argparse.Namespace) -> int:
     sessions = _load_sessions(ctx, args.since)
     if not args.output:
+        buffer = getattr(ctx.stdout, "buffer", None)
+        if args.format == "ics" and buffer is not None:
+            # raw bytes: text mode on Windows would turn CRLF into CR CR LF
+            ctx.stdout.flush()
+            buffer.write(to_ics(sessions).encode("utf-8"))
+            buffer.flush()
+            return EXIT_OK
         _write_export(ctx.stdout, args.format, sessions)
         return EXIT_OK
     try:

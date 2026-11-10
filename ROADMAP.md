@@ -74,10 +74,11 @@ Estimates are rough working hours for one person.
 - [ ] `focusbell relabel` to fix the label of the last session (or one picked
       by `--start`), rewriting the log atomically (about 2 h)
 
-## v0.9: calendar export (about 2 h)
+## v0.9: calendar export (about 3 h, export done)
 
-- [ ] `focusbell export --format ics`: one VEVENT per work block (label as the
+- [x] `focusbell export --format ics`: one VEVENT per session (label as the
       summary, status in the description) for import into a calendar app
+- [ ] `export --format ics --skip-interrupted` and a break-event option (about 1 h)
 
 ## v1.0: release (about 3 h)
 

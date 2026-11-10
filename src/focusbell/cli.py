@@ -14,7 +14,7 @@ from typing import Callable, ContextManager, Mapping, Optional, Sequence, TextIO
 
 from . import __version__, config, keys, notify, report, sound, timer, todo
 from .ics import to_ics
-from .log import Session, append_record, data_dir, log_path, read_sessions, set_note
+from .log import Session, append_record, data_dir, log_path, read_sessions, set_label, set_note
 from .render import (
     BLOCK_EMPTY,
     BLOCK_FULL,
@@ -184,6 +184,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("text", nargs="+", help="the note (replaces any earlier note)")
     p.add_argument("--start", type=_start_minute, metavar="'YYYY-MM-DD HH:MM'",
                    help="attach to the session that started at this local time "
+                        "(as shown by `log`) instead of the latest")
+
+    p = sub.add_parser("relabel", parents=[color],
+                       help="change the label of the most recent session")
+    p.add_argument("label", nargs="+", help="the new label")
+    p.add_argument("--start", type=_start_minute, metavar="'YYYY-MM-DD HH:MM'",
+                   help="relabel the session that started at this local time "
                         "(as shown by `log`) instead of the latest")
 
     p = sub.add_parser("stats", parents=[color], help="focus minutes per day, totals, streak")
@@ -469,6 +476,32 @@ def cmd_note(ctx: _Ctx, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_relabel(ctx: _Ctx, args: argparse.Namespace) -> int:
+    label = " ".join(" ".join(args.label).split())
+    if not label:
+        ctx.error("the label is empty")
+        return EXIT_USAGE
+    try:
+        select = None
+        if args.start:
+            select = lambda s: to_local(s.start, ctx.tz).strftime("%Y-%m-%d %H:%M") == args.start
+        result = set_label(log_path(ctx.environ), label, select)
+    except OSError as exc:
+        ctx.error(f"could not update the log: {exc}")
+        return EXIT_ERROR
+    if result is None:
+        if args.start:
+            ctx.error(f"no session started at {args.start} (see `focusbell log`)")
+        else:
+            ctx.error("no sessions logged yet, so there is nothing to relabel")
+        return EXIT_ERROR
+    session, old = result
+    start = to_local(session.start, ctx.tz)
+    ctx.out(f"Relabelled the {start.strftime('%Y-%m-%d %H:%M')} session: "
+            f"{old or 'no label'} -> {label}")
+    return EXIT_OK
+
+
 def cmd_stats(ctx: _Ctx, args: argparse.Namespace) -> int:
     if args.days > 366:
         ctx.error(f"--days must be between 1 and 366, got {args.days}")
@@ -719,6 +752,7 @@ COMMANDS = {
     "start": cmd_start,
     "log": cmd_log,
     "note": cmd_note,
+    "relabel": cmd_relabel,
     "stats": cmd_stats,
     "report": cmd_report,
     "config": cmd_config,

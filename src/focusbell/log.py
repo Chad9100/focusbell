@@ -136,6 +136,22 @@ def set_note(
     (corrupt ones included) is kept byte for byte. Returns the updated session,
     or None when the log holds no matching valid session.
     """
+    return _update_latest(path, "note", note, select)
+
+
+def set_label(
+    path: Path, label: str, select: Optional[Callable[[Session], bool]] = None
+) -> Optional[tuple[Session, Optional[str]]]:
+    """Replace the label of the most recent (or selected) session.
+
+    Same atomic, byte-preserving rewrite as :func:`set_note`. Returns the
+    updated session and the old label, or None when nothing matched.
+    """
+    return _update_latest(path, "label", label, select, with_old=True)
+
+
+def _update_latest(path, key, value, select, with_old=False):
+    """Set ``key`` on the newest accepted session; see :func:`set_note`."""
     if not path.exists():
         return None
     lines = path.read_bytes().split(b"\n")
@@ -159,13 +175,17 @@ def set_note(
         return None
     index = best[1]
     obj = parsed[index]
-    obj["note"] = note
+    old = obj.get(key)
+    obj[key] = value
     ending = b"\r" if lines[index].endswith(b"\r") else b""
     lines[index] = json.dumps(obj, ensure_ascii=False).encode("utf-8") + ending
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_bytes(b"\n".join(lines))
     os.replace(tmp, path)
-    return parse_record(obj)
+    updated = parse_record(obj)
+    if with_old:
+        return updated, (old if isinstance(old, str) and old else None)
+    return updated
 
 
 def read_sessions(

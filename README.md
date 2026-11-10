@@ -595,6 +595,22 @@ $ focusbell note --start "2026-11-09 09:01" x
 focusbell: error: no session started at 2026-11-09 09:01 (see `focusbell log`)
 ```
 
+### Relabel
+
+Fix a typo or rename a label after the fact (output from a real run):
+
+```text
+$ focusbell relabel email
+Relabelled the 2026-11-09 10:00 session: emial -> email
+$ focusbell relabel --start "2026-11-09 09:00" thesis ch2
+Relabelled the 2026-11-09 09:00 session: thesis -> thesis ch2
+$ focusbell relabel --start "2026-11-09 09:01" x
+focusbell: error: no session started at 2026-11-09 09:01 (see `focusbell log`)
+```
+
+Like `note`, it targets the latest session unless `--start` picks one, and the
+log is rewritten atomically with every other line left byte for byte.
+
 ### Export
 
 ```text

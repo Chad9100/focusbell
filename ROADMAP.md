@@ -72,8 +72,10 @@ Estimates are rough working hours for one person.
       shown in `log` and exported to CSV/JSON (about 1.5 h)
 - [x] Notes in the HTML report and the ics description (about 0.5 h)
 - [x] `note --start` to pick a session other than the latest (about 0.5 h)
-- [ ] `focusbell relabel` to fix the label of the last session (or one picked
-      by `--start`), rewriting the log atomically (about 2 h)
+- [x] `focusbell relabel` to fix the label of the last session (or one picked
+      by `--start`), rewriting the log atomically (about 1 h)
+- [ ] `relabel --all OLD NEW` to rename a label across the whole log
+      (split from relabel; about 1 h)
 
 ## v0.9: calendar export (about 3 h, export done)
 

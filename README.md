@@ -607,7 +607,9 @@ END:VEVENT
 
 `--format ics` writes one event per session (interrupted ones included, marked
 in the description) with UTC times, CRLF line endings and escaped, folded text,
-ready to import into any calendar app.
+ready to import into any calendar app. Add `--skip-interrupted` (any format)
+to leave interrupted sessions out, e.g. `focusbell export --format ics
+--skip-interrupted --output focus.ics`.
 
 ### HTML report
 

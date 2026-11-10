@@ -78,7 +78,9 @@ Estimates are rough working hours for one person.
 
 - [x] `focusbell export --format ics`: one VEVENT per session (label as the
       summary, status in the description) for import into a calendar app
-- [ ] `export --format ics --skip-interrupted` and a break-event option (about 1 h)
+- [x] `export --skip-interrupted` drops interrupted sessions from any format
+      (about 0.5 h)
+- [ ] Break events in the ics export (needs break records in the log; about 1 h)
 
 ## v1.0: release (about 3 h)
 

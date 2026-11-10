@@ -316,6 +316,22 @@ def test_export_ics_to_file(run, isolated_home, tmp_path):
     assert b"\r\r" not in data
 
 
+def test_export_skip_interrupted_ics(run, isolated_home, tmp_path):
+    write_log(isolated_home, DEMO)
+    target = tmp_path / "skip.ics"
+    code, _, err = run("export", "--format", "ics", "--skip-interrupted", "--output", str(target))
+    assert code == 0 and "Exported 4 session(s)" in err
+    data = target.read_bytes()
+    assert data.count(b"BEGIN:VEVENT") == 4 and b"Interrupted" not in data
+
+
+def test_export_skip_interrupted_json_with_since(run, isolated_home):
+    write_log(isolated_home, DEMO)
+    code, out, _ = run("export", "--format", "json", "--since", "2026-11-09", "--skip-interrupted")
+    assert code == 0
+    assert [r["status"] for r in json.loads(out)] == ["completed"]
+
+
 def test_export_empty_log_json(run):
     assert json.loads(run("export", "--format", "json")[1]) == []
 

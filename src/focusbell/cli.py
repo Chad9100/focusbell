@@ -197,6 +197,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--format", choices=("csv", "json", "ics"), default="csv")
     p.add_argument("--output", "-o", help="write to this file instead of stdout")
     p.add_argument("--since", type=_since, help="only sessions on or after DATE (YYYY-MM-DD)")
+    p.add_argument(
+        "--skip-interrupted",
+        action="store_true",
+        help="leave interrupted sessions out of the export",
+    )
     return parser
 
 
@@ -618,6 +623,8 @@ def _write_export(fh: TextIO, fmt: str, sessions: list[Session]) -> None:
 
 def cmd_export(ctx: _Ctx, args: argparse.Namespace) -> int:
     sessions = _load_sessions(ctx, args.since)
+    if args.skip_interrupted:
+        sessions = [s for s in sessions if s.status != "interrupted"]
     if not args.output:
         buffer = getattr(ctx.stdout, "buffer", None)
         if args.format == "ics" and buffer is not None:
